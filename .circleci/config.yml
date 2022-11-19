@@ -21,6 +21,15 @@ jobs:
           name: "WhichR"
           command: "which R"
       - run:
+          name: "Install devtools"
+          command: "R -e \"install.packages('devtools', repos = 'http://cran.rstudio.com')\""
+      - run:
+          name: "Install BiocManager"
+          command: "R -e \"install.packages('BiocManager', repos = 'http://cran.rstudio.com')\""
+      - run:
+          name: "Install Bioconductor packages"
+          command: "R -e \"BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
+      - run:
           name: "Install"
           command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
 
