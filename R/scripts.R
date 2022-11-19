@@ -25,8 +25,6 @@ patternList.mouse[["RPS"]] = "^Rps"
 ##
 #
 
-
-
 #' Reads in a list of mtx files and returns two named lists of gene expression counts and Antibody Capture Counts
 #'
 #'
@@ -44,12 +42,12 @@ readMtxFiles = function(files)
 
   for (file in files)
   {
-    samplename = str_split(dirname(file), "/")[[1]][3]
+    samplename = stringr::str_split(dirname(file), "/")[[1]][3]
     foldername = dirname(file)
     
     print(paste(samplename, foldername))
     
-    h5file = Read10X(foldername,unique.features = TRUE)
+    h5file = Seurat::Read10X(foldername,unique.features = TRUE)
 
     if (is.null(names(h5file)))
     {
@@ -67,6 +65,49 @@ readMtxFiles = function(files)
   return(list(gex=allfiles.raw, ab=allABs.raw))
 }
 
+#' Turns a feature-cell-matrix into a Seurat objects with called mt/rp/rps/rpl-content
+#'
+#'
+#' @param matrix feature-cell-matrix of the sample
+#' @param proj project name for the seurat object
+#' @param pl patternlist for mt-content and rp/rps/rpl-content
+#'
+#' @return Seurat object
+#'
+#' @export
+makeSeuratObj = function(matrix, proj, pl)
+{
+    obj = Seurat::CreateSeuratObject(matrix, project=proj)
+    print("Renaming Cells")
+    obj <- Seurat::RenameCells(obj, add.cell.id=proj)
+    
+    print(paste("Seurat obj project", obj@project.name))
+    
+    mtPattern = pl[["MT"]]
+    rplPattern = pl[["RPL"]]
+    rpsPattern = pl[["RPS"]]
+    rpPattern = paste(c(pl[["RPL"]], pl[["RPS"]]), sep="", collapse="|")
+
+    
+    selGenes = rownames(obj)[grepl(rownames(obj), pattern=mtPattern)]
+    print(paste("Got a total of mt-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
+    
+    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rplPattern)]
+    print(paste("Got a total of Rpl-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
+    
+    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rpsPattern)]
+    print(paste("Got a total of Rps-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
+    
+    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rpPattern)]
+    print(paste("Got a total of Rp-Genes:", length(selGenes), paste(head(selGenes), collapse =", ")))
+    
+    obj[["percent.mt"]] <- Seurat::PercentageFeatureSet(obj, pattern = mtPattern)
+    obj[["percent.rpl"]] <- Seurat::PercentageFeatureSet(obj, pattern = rplPattern)
+    obj[["percent.rps"]] <- Seurat::PercentageFeatureSet(obj, pattern = rpsPattern)
+    obj[["percent.rp"]] <- Seurat::PercentageFeatureSet(obj, pattern = rpPattern)
+    
+    return(obj)
+}
 
 
 #' Transforms a list of gene expression matrices into Seurat objects, normalizes data and calculate variable features
@@ -92,8 +133,8 @@ for (x in names(inputMatrices$gex))
     
     filteredObj = makeSeuratObj(matrix, x, patternlist)   
     
-    filteredObj <- NormalizeData(filteredObj, verbose = FALSE)
-    filteredObj <- FindVariableFeatures(filteredObj, nfeatures=variable.features, verbose = FALSE)
+    filteredObj <- Seurat::NormalizeData(filteredObj, verbose = FALSE)
+    filteredObj <- Seurat::FindVariableFeatures(filteredObj, nfeatures=variable.features, verbose = FALSE)
     
     objlist[[x]] = filteredObj
 
@@ -107,50 +148,6 @@ return(objlist)
 }
 
 
-#' Turns a feature-cell-matrix into a Seurat objects with called mt/rp/rps/rpl-content
-#'
-#'
-#' @param matrix feature-cell-matrix of the sample
-#' @param proj project name for the seurat object
-#' @param pl patternlist for mt-content and rp/rps/rpl-content
-#'
-#' @return Seurat object
-#'
-#'
-#' @export
-makeSeuratObj = function(matrix, proj, pl)
-{
-    obj = CreateSeuratObject(matrix, project=proj)
-    print("Renaming Cells")
-    obj <- RenameCells(obj, add.cell.id=proj)
-    
-    print(paste("Seurat obj project", obj@project.name))
-    
-    mtPattern = pl[["MT"]]
-    rplPattern = pl[["RPL"]]
-    rpsPattern = pl[["RPS"]]
-    rpPattern = paste(c(pl[["RPL"]], pl[["RPS"]]), sep="", collapse="|")
-
-    
-    selGenes = rownames(obj)[grepl(rownames(obj), pattern=mtPattern)]
-    print(paste("Got a total of mt-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
-    
-    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rplPattern)]
-    print(paste("Got a total of Rpl-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
-    
-    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rpsPattern)]
-    print(paste("Got a total of Rps-Genes:", length(selGenes), paste(head(selGenes), collapse=", ")))
-    
-    selGenes = rownames(obj)[grepl(rownames(obj), pattern=rpPattern)]
-    print(paste("Got a total of Rp-Genes:", length(selGenes), paste(head(selGenes), collapse =", ")))
-    
-    obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = mtPattern)
-    obj[["percent.rpl"]] <- PercentageFeatureSet(obj, pattern = rplPattern)
-    obj[["percent.rps"]] <- PercentageFeatureSet(obj, pattern = rpsPattern)
-    obj[["percent.rp"]] <- PercentageFeatureSet(obj, pattern = rpPattern)
-    
-    return(obj)
-}
 
 #' Takes a list of seurat objects and creates QC plots and filters all objects according to nFeature_RNA, nCount_RNA and percent.mt
 #'
@@ -172,12 +169,12 @@ scatterAndFilter = function(objlist, nfeature_rna.lower=100, nfeature_rna.upper=
   {
     print(name)
 
-    plot1 <- FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "percent.mt")
-    plot2 <- FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+    plot1 <- Seurat::FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "percent.mt")
+    plot2 <- Seurat::FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
     save_plot(plot1 + plot2, paste(name, "scatter_ncount_mt", sep="_"), fig.width=10, fig.height=6)
 
-    plot1 <- FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "percent.rp")
-    plot2 <- FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+    plot1 <- Seurat::FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "percent.rp")
+    plot2 <- Seurat::FeatureScatter(objlist[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
     save_plot(plot1 + plot2, paste(name, "scatter_ncount_rp", sep="_"), fig.width=10, fig.height=6)
   }
 
@@ -195,15 +192,15 @@ scatterAndFilter = function(objlist, nfeature_rna.lower=100, nfeature_rna.upper=
 
   for (name in names(objlist.new))
   {
-    p=VlnPlot(objlist.new[[name]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+    p=Seurat::VlnPlot(objlist.new[[name]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
     save_plot(p, paste(name, "filtered_violins_qc", sep="_"), fig.width=10, fig.height=6)
     
-    plot1 <- FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "percent.mt")
-    plot2 <- FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+    plot1 <- Seurat::FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "percent.mt")
+    plot2 <- Seurat::FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
     save_plot(plot1 + plot2, paste(name, "filtered_scatter_ncount_mt", sep="_"), fig.width=10, fig.height=6)
     
-    plot1 <- FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "percent.rp")
-    plot2 <- FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+    plot1 <- Seurat::FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "percent.rp")
+    plot2 <- Seurat::FeatureScatter(objlist.new[[name]], feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
     save_plot(plot1 + plot2, paste(name, "filtered_scatter_ncount_rp", sep="_"), fig.width=10, fig.height=6)
   }
 
@@ -258,14 +255,14 @@ for (name in intersect(names(inputMatrices$ab), names(relevantHTOs)))
     print(paste(cellsGEX, cellsAB, length(cellsJoint), ncol(cellsABsub)))
 
     # Normalize RNA data with log normalization
-    xobj <- NormalizeData(objlist[[name]])
+    xobj <- Seurat::NormalizeData(objlist[[name]])
     # Find and scale variable features
-    xobj <- FindVariableFeatures(xobj, selection.method = "mean.var.plot")
-    xobj <- ScaleData(xobj, features = VariableFeatures(xobj))
+    xobj <- Seurat::FindVariableFeatures(xobj, selection.method = "mean.var.plot")
+    xobj <- Seurat::ScaleData(xobj, features = VariableFeatures(xobj))
 
-    xobj[["HTO"]] <- CreateAssayObject(counts = cellsABsub)
-    xobj <- NormalizeData(xobj, assay = "HTO", normalization.method = "CLR")
-    xobj <- HTODemux(xobj, assay = "HTO", positive.quantile = 0.99)
+    xobj[["HTO"]] <- Seurat::CreateAssayObject(counts = cellsABsub)
+    xobj <- Seurat::NormalizeData(xobj, assay = "HTO", normalization.method = "CLR")
+    xobj <- Seurat::HTODemux(xobj, assay = "HTO", positive.quantile = 0.99)
 
     print(table(xobj$HTO_classification.global))
     print(table(xobj$HTO_classification))
@@ -293,18 +290,18 @@ qcFilterHTO = function(htoObjList)
 
   for (name in names(htoObjList))
   {
-    p=VlnPlot(htoObjList[[name]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "HTO_classification.global")
+    p=Seurat::VlnPlot(htoObjList[[name]], features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, group.by = "HTO_classification.global")
     save_plot(p, paste(name, "hto_violins_qc", sep="_"), fig.width=10, fig.height=6)
 
 
     allHTOFeatures = rownames(htoObjList[[name]][["HTO"]])
     figHeight = round(length(allHTOFeatures)*0.5 * 6)
-    r=RidgePlot(htoObjList[[name]], assay = "HTO", features = allHTOFeatures, ncol = 2)
+    r=Seurat::RidgePlot(htoObjList[[name]], assay = "HTO", features = allHTOFeatures, ncol = 2)
     save_plot(r, paste(name, "hto_ridge_qc", sep="_"), fig.width=10, fig.height=figHeight)
 
     allHTOFeatures = rownames(htoObjList[[name]][["HTO"]])
     figHeight = round(length(unique(htoObjList[[name]]$HTO_classification))*0.5 * 4)
-    r=RidgePlot(htoObjList[[name]], assay = "HTO", features = allHTOFeatures, group.by="HTO_classification", ncol = 2)
+    r=Seurat::RidgePlot(htoObjList[[name]], assay = "HTO", features = allHTOFeatures, group.by="HTO_classification", ncol = 2)
     save_plot(r, paste(name, "hto_ridge_detail_qc", sep="_"), fig.width=10, fig.height=figHeight)
 
   
@@ -449,19 +446,19 @@ prepareIntegration = function(finalList, cc.use.genes, nfeatures.variable = 3000
           x$orig_project = objname
         }
 
-        Project(x) = objname
+        Seurat::Project(x) = objname
         print(paste("Seurat obj project", x@project.name))
 
-        DefaultAssay(x) = "RNA"
+        Seurat::DefaultAssay(x) = "RNA"
 
         if (normalize)
         {
-          x <- NormalizeData(x, verbose = FALSE)
+          x <- Seurat::NormalizeData(x, verbose = FALSE)
         }
         
         if (findvariable)
         {
-          x <- FindVariableFeatures(x, nfeatures=nfeatures.variable, verbose = FALSE)
+          x <- Seurat::FindVariableFeatures(x, nfeatures=nfeatures.variable, verbose = FALSE)
         }
       
         x$library = objname
@@ -470,7 +467,7 @@ prepareIntegration = function(finalList, cc.use.genes, nfeatures.variable = 3000
     }
 
     print("SelectIntegrationFeatures")
-    features <- SelectIntegrationFeatures(object.list = objlist, nfeatures = nfeatures.scale)
+    features <- Seurat::SelectIntegrationFeatures(object.list = objlist, nfeatures = nfeatures.scale)
 
     objlist <- lapply(X = objlist, FUN = function(x) {
 
@@ -485,23 +482,23 @@ prepareIntegration = function(finalList, cc.use.genes, nfeatures.variable = 3000
 
         print(paste("CellCycle", length(s.genes), length(g2m.genes)))
 
-        x <- CellCycleScoring(
+        x <- Seurat::CellCycleScoring(
         x,
         g2m.features = g2m.genes,
         s.features = s.genes)
 
         if (!run.parallel)
         {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
         }
 
-        x <- ScaleData(x, features = features, verbose = TRUE, assay="RNA", vars.to.regress = scale.regress)
-        x <- RunPCA(x, verbose = FALSE, reduction.name="pca", assay="RNA")
+        x <- Seurat::ScaleData(x, features = features, verbose = TRUE, assay="RNA", vars.to.regress = scale.regress)
+        x <- Seurat::RunPCA(x, verbose = FALSE, reduction.name="pca", assay="RNA")
 
         if (!run.parallel)
         {
-        plan(t)
+        future::plan(t)
         }
 
         x$project = x@project.name
@@ -540,7 +537,7 @@ prepareIntegration = function(finalList, cc.use.genes, nfeatures.variable = 3000
 #' @param add.k.weight Number of neighbors to consider when weighting anchors for the additional data
 #' @param run.parallel whether to run ScaleData sequentially
 #'
-#' @return
+#' @return list(integrated, multimodal) where integrated is the gene expression only integrated version, and multimodal the gex+add version
 #' @export
 #'
 performIntegration = function(objlist, intname, features.integration = 3000, 
@@ -562,19 +559,19 @@ run.parallel=TRUE)
 
       objSamples = lapply(objSamples, function(x) {
         print(paste("Object", x@project.name))
-        DefaultAssay(x) <- add.assay
-        VariableFeatures(x) <- rownames(x) # all HTOs
+        Seurat::DefaultAssay(x) <- add.assay
+        Seurat::VariableFeatures(x) <- rownames(x) # all HTOs
 
         if (dim(x@assays[[add.assay]]@scale.data)[1] == 0)
         {
-          x = ScaleData(x, assay=add.assay)
+          x = Seurat::ScaleData(x, assay=add.assay)
         }
         
         if (("pca" %in% names(x@reductions)) && (x@reductions$pca@assay.used == add.assay))
         {
           print("PCA ALREADY THERE")
         } else {
-          x = RunPCA(x,features = rownames(x),verbose = FALSE, reduction.name="pca", approx=FALSE, npcs=add.dims, assay=add.assay)
+          x = Seurat::RunPCA(x,features = rownames(x),verbose = FALSE, reduction.name="pca", approx=FALSE, npcs=add.dims, assay=add.assay)
         }
 
         return(x)
@@ -586,17 +583,17 @@ run.parallel=TRUE)
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
-      objlist.anchors.add <- FindIntegrationAnchors(object.list = objSamples, assay=rep(add.assay, length(objSamples)), normalization.method = "LogNormalize",
+      objlist.anchors.add <- Seurat::FindIntegrationAnchors(object.list = objSamples, assay=rep(add.assay, length(objSamples)), normalization.method = "LogNormalize",
                                                     anchor.features = add.features.integration, dims = 1:add.dims, reduction = add.method.integration, k.filter = add.k.filter, k.anchor=add.k.anchor)
 
-      add.list.integrated <- IntegrateData(new.assay.name = "integrated_add", anchorset = objlist.anchors.add, normalization.method = "LogNormalize", dims=1:(add.dims-1), k.weight=add.k.weight)
+      add.list.integrated <- Seurat::IntegrateData(new.assay.name = "integrated_add", anchorset = objlist.anchors.add, normalization.method = "LogNormalize", dims=1:(add.dims-1), k.weight=add.k.weight)
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
 
@@ -616,7 +613,7 @@ run.parallel=TRUE)
 
     objSamples = lapply(objSamples, function(x) {
         print(paste("Object", x@project.name))
-        DefaultAssay(x) <- gex.assay
+        Seurat::DefaultAssay(x) <- gex.assay
         return(x)
     })
 
@@ -628,7 +625,7 @@ run.parallel=TRUE)
       if (gex.method.normalization == "SCT")
       {
         print("SCTransform")
-        objSamples <- lapply(X = objSamples, FUN = SCTransform, method = "glmGamPoi")
+        objSamples <- lapply(X = objSamples, FUN = Seurat::SCTransform, method = "glmGamPoi")
 
       }
 
@@ -636,9 +633,9 @@ run.parallel=TRUE)
       if (is.numeric(features.integration))
       {
         print("RunPCA")
-        objSamples <- lapply(X = objSamples, FUN = RunPCA, npcs=min(c(50, gex.dims)), verbose = FALSE, reduction.name="pca", assay=gex.assay)
+        objSamples <- lapply(X = objSamples, FUN = Seurat::RunPCA, npcs=min(c(50, gex.dims)), verbose = FALSE, reduction.name="pca", assay=gex.assay)
         print("Select Integration Features")
-        features_gex <- SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration, assay=rep(gex.assay, length(objSamples)))
+        features_gex <- Seurat::SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration, assay=rep(gex.assay, length(objSamples)))
       } else {
         features_gex = features.integration
         print("RunPCA on given features")
@@ -647,7 +644,7 @@ run.parallel=TRUE)
         {
           if (gex.runpca)
           {
-            x = RunPCA(x,npcs=min(c(50, gex.dims)),verbose = FALSE, reduction.name="pca", features=features_gex, assay=gex.assay)
+            x = Seurat::RunPCA(x,npcs=min(c(50, gex.dims)),verbose = FALSE, reduction.name="pca", features=features_gex, assay=gex.assay)
           }
 
           return(x)
@@ -659,26 +656,26 @@ run.parallel=TRUE)
       if (gex.method.normalization == "SCT")
       {
         print("PrepSCTIntegration")
-        objSamples <- PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
+        objSamples <- Seurat::PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
         print("Calculating PCAs on SCT")
-        objSamples <- lapply(X = objSamples, FUN = RunPCA, features = features_gex)
+        objSamples <- lapply(X = objSamples, FUN = Seurat::RunPCA, features = features_gex)
       }
 
       print("FindIntegrationAnchors")
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
-      print(plan())
+      print(future::plan())
 
-      objlist.anchors <- FindIntegrationAnchors(object.list = objSamples,  reduction = gex.method.integration, dims = 1:gex.dims, anchor.features = features_gex, normalization.method=gex.method.normalization, k.anchor=gex.k.anchor, k.filter = gex.k.filter)
-      obj.list.integrated <- IntegrateData(new.assay.name = "integrated_gex", anchorset = objlist.anchors, dims = 1:gex.dims, verbose=T, normalization.method = gex.method.normalization, k.weight=gex.k.weight)
+      objlist.anchors <- Seurat::FindIntegrationAnchors(object.list = objSamples,  reduction = gex.method.integration, dims = 1:gex.dims, anchor.features = features_gex, normalization.method=gex.method.normalization, k.anchor=gex.k.anchor, k.filter = gex.k.filter)
+      obj.list.integrated <- Seurat::IntegrateData(new.assay.name = "integrated_gex", anchorset = objlist.anchors, dims = 1:gex.dims, verbose=T, normalization.method = gex.method.normalization, k.weight=gex.k.weight)
       
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
 
@@ -688,29 +685,29 @@ run.parallel=TRUE)
     } else {
 
       objSamples = lapply(objSamples, function(x) {
-          DefaultAssay(x) <- gex.assay
+          Seurat::DefaultAssay(x) <- gex.assay
 
-          x <- RunPCA(x, npcs=max(c(50, gex.dims)), verbose = FALSE, reduction.name="pca",  assay=gex.assay)
-          suppressWarnings(x <- SCTransform(x,vars.to.regress = c('percent.mt', 'percent.rp'), verbose = T))
+          x <- Seurat::RunPCA(x, npcs=max(c(50, gex.dims)), verbose = FALSE, reduction.name="pca",  assay=gex.assay)
+          suppressWarnings(x <- Seurat::SCTransform(x,vars.to.regress = c('percent.mt', 'percent.rp'), verbose = T))
 
           return(x)
       })
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
 
-      features_gex <- SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration)#, assay=rep("RNA", length(objSamples)))
-      objSamples <- PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
+      features_gex <- Seurat::SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration)#, assay=rep("RNA", length(objSamples)))
+      objSamples <- Seurat::PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
 
-      objlist.anchors <- FindIntegrationAnchors(object.list = objSamples, normalization.method = "SCT", anchor.features = features_gex, k.anchor=gex.k.anchor,k.filter = add.k.filter)
-      obj.list.integrated <- IntegrateData(anchorset = objlist.anchors, normalization.method = "SCT", new.assay.name = "integrated_gex",verbose=T, k.weight=gex.k.weight)
+      objlist.anchors <- Seurat::FindIntegrationAnchors(object.list = objSamples, normalization.method = "SCT", anchor.features = features_gex, k.anchor=gex.k.anchor,k.filter = add.k.filter)
+      obj.list.integrated <- Seurat::IntegrateData(anchorset = objlist.anchors, normalization.method = "SCT", new.assay.name = "integrated_gex",verbose=T, k.weight=gex.k.weight)
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
     }
@@ -723,19 +720,19 @@ run.parallel=TRUE)
     {
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
-      obj.list.integrated = ScaleData(obj.list.integrated, assay="integrated_gex")
+      obj.list.integrated = Seurat::ScaleData(obj.list.integrated, assay="integrated_gex")
     
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
     }
-    obj.list.integrated <- RunPCA(obj.list.integrated, npcs = gex.dims, reduction.name="igpca", assay="integrated_gex")
-    obj.list.integrated <- RunUMAP(obj.list.integrated, reduction = "igpca", dims = 1:gex.dims, reduction.name="ig.umap", reduction.key = "UMAPig_",)
-    p=DimPlot(obj.list.integrated, group.by="orig_project", reduction="ig.umap", shuffle = TRUE, seed = 1)
+    obj.list.integrated <- Seurat::RunPCA(obj.list.integrated, npcs = gex.dims, reduction.name="igpca", assay="integrated_gex")
+    obj.list.integrated <- Seurat::RunUMAP(obj.list.integrated, reduction = "igpca", dims = 1:gex.dims, reduction.name="ig.umap", reduction.key = "UMAPig_",)
+    p=Seurat::DimPlot(obj.list.integrated, group.by="orig_project", reduction="ig.umap", shuffle = TRUE, seed = 1)
     save_plot(p, paste(intname, "ig_dimplot", sep="/"), 8, 6)
 
     obj.list.gex_add = NULL
@@ -749,21 +746,21 @@ run.parallel=TRUE)
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
 
-      obj.list.integrated = ScaleData(obj.list.integrated, assay="integrated_add")
+      obj.list.integrated = Seurat::ScaleData(obj.list.integrated, assay="integrated_add")
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
-      obj.list.integrated <- RunPCA(obj.list.integrated, features = rownames(add.list.integrated[[add.assay]]), verbose = FALSE, approx=FALSE, npcs=add.dims, reduction.name="iapca", assay="integrated_add")
-      obj.list.integrated <- RunUMAP(obj.list.integrated, reduction = "iapca", dims = 1:add.dims, reduction.name="ia.umap", reduction.key = "UMAPia_",)
+      obj.list.integrated <- Seurat::RunPCA(obj.list.integrated, features = rownames(add.list.integrated[[add.assay]]), verbose = FALSE, approx=FALSE, npcs=add.dims, reduction.name="iapca", assay="integrated_add")
+      obj.list.integrated <- Seurat::RunUMAP(obj.list.integrated, reduction = "iapca", dims = 1:add.dims, reduction.name="ia.umap", reduction.key = "UMAPia_",)
 
-      p=DimPlot(obj.list.integrated, group.by="orig_project", reduction="ia.umap", shuffle = TRUE, seed = 1)
+      p=Seurat::DimPlot(obj.list.integrated, group.by="orig_project", reduction="ia.umap", shuffle = TRUE, seed = 1)
       save_plot(p, paste(intname, "ia_dimplot", sep="/"), 8, 6)
 
 
@@ -771,32 +768,32 @@ run.parallel=TRUE)
       # multi modal neighbors
       #
 
-      obj.list.gex_add <- FindMultiModalNeighbors(
+      obj.list.gex_add <- Seurat::FindMultiModalNeighbors(
         obj.list.integrated, reduction.list = list("igpca", "iapca"), 
         dims.list = list(1:gex.dims, 1:add.dims), prune.SNN=1/20
       )
       #
       # multi modal viz
       #
-      obj.list.gex_add <- RunUMAP(obj.list.gex_add, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
-      obj.list.gex_add <- FindClusters(obj.list.gex_add, graph.name = "wsnn", algorithm = 3, resolution = 1, verbose = FALSE)
+      obj.list.gex_add <- Seurat::RunUMAP(obj.list.gex_add, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+      obj.list.gex_add <- Seurat::FindClusters(obj.list.gex_add, graph.name = "wsnn", algorithm = 3, resolution = 1, verbose = FALSE)
 
-      p <- DimPlot(obj.list.gex_add, reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_dimplot", sep="/"), 8, 6)
 
-      p <- DimPlot(obj.list.gex_add, group.by="orig_project", reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, group.by="orig_project", reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_project_dimplot", sep="/"), 8, 6)
 
 
-      p <- DimPlot(obj.list.gex_add, reduction = 'ig.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'ig.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_ig_dimplot", sep="/"), 8, 6)
 
 
-      p <- DimPlot(obj.list.gex_add, reduction = 'ia.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'ia.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_ia_dimplot", sep="/"), 8, 6)
 
 
-      obj.list.integrated$wnn_clusters = Idents(obj.list.gex_add)
+      obj.list.integrated$wnn_clusters = Seurat::Idents(obj.list.gex_add)
     }
 
     return(list("integrated"=obj.list.integrated, "multimodal"=obj.list.gex_add))
@@ -823,7 +820,7 @@ run.parallel=TRUE)
 #' @param with.hto whether also HTO plots should be prepared
 #' @param run.parallel whether the ScaleData function should run in parallel or sequential
 #'
-#' @return
+#' @return preprocessed Seurat object
 #' @export
 #'
 preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50, resolution=0.5, plot.reduction="umap", dim.reduction="umap", with.hto=TRUE, run.parallel=TRUE)
@@ -836,7 +833,7 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
   }
 
 
-  DefaultAssay(obj.in) <- useAssay
+  Seurat::DefaultAssay(obj.in) <- useAssay
 
   # Run the standard workflow for visualization and clustering
   if (do.scale)
@@ -846,14 +843,14 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
 
     if (!run.parallel)
     {
-      t = plan()
-      plan("sequential")
+      t = future::plan()
+      future::plan("sequential")
     }
-    obj.in <- ScaleData(obj.in, verbose = FALSE)
+    obj.in <- Seurat::ScaleData(obj.in, verbose = FALSE)
 
     if (!run.parallel)
     {
-      plan(t)
+      future::plan(t)
     }
   }
     
@@ -862,33 +859,33 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
     print("RunPCA Data")
     dim.reduction = "pca"
 
-    obj.in <- RunPCA(obj.in, npcs = max(c(num.pcs, 50)), verbose = FALSE, reduction.name=dim.reduction)
+    obj.in <- Seurat::RunPCA(obj.in, npcs = max(c(num.pcs, 50)), verbose = FALSE, reduction.name=dim.reduction)
     
   }
 
   print(paste("dim.reduction", dim.reduction))
 
-  p=ElbowPlot(obj.in, ndims=30, reduction = dim.reduction)
+  p=Seurat::ElbowPlot(obj.in, ndims=30, reduction = dim.reduction)
   save_plot(p, paste(inname, "elbowplot", sep="/"), 12, 6)
 
   
   print("RunUMAP Data")
-  obj.in <- RunUMAP(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
+  obj.in <- Seurat::RunUMAP(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
   print("FindNeighbors Data")
-  obj.in <- FindNeighbors(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
+  obj.in <- Seurat::FindNeighbors(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
   print("FindClusters Data")
-  obj.in <- FindClusters(obj.in, resolution = resolution)
+  obj.in <- Seurat::FindClusters(obj.in, resolution = resolution)
 
 
-  obj.in$idents = Idents(obj.in)
+  obj.in$idents = Seurat::Idents(obj.in)
 
-  p=DimPlot(obj.in, pt.size = 0.001, label=T, reduction = plot.reduction)
+  p=Seurat::DimPlot(obj.in, pt.size = 0.001, label=T, reduction = plot.reduction)
   save_plot(p, paste(inname, "dimplot_umap", sep="/"), fig.width=12, fig.height=8)
 
   numProjects = length(unique(obj.in$orig_project))
   numRows = ceiling(numProjects/2)
 
-  p=DimPlot(obj.in, pt.size = 0.001, label=T, split.by="orig_project", reduction = plot.reduction, ncol=2)
+  p=Seurat::DimPlot(obj.in, pt.size = 0.001, label=T, split.by="orig_project", reduction = plot.reduction, ncol=2)
   save_plot(p, paste(inname, "dimplot_umap_project", sep="/"), fig.width=24, fig.height=8*numRows)
   
 
@@ -901,7 +898,7 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
       numLibHTO = length(unique(obj.in$libraryHTO))
       numRows = ceiling(numLibHTO/3)
 
-      p=DimPlot(obj.in, split.by="libraryHTO", pt.size = 0.001, label=T, reduction = plot.reduction, ncol=3)
+      p=Seurat::DimPlot(obj.in, split.by="libraryHTO", pt.size = 0.001, label=T, reduction = plot.reduction, ncol=3)
       save_plot(p, paste(inname, "dimplot_umap_libraryHTO", sep="/"), fig.width=16, fig.height=min(3*numRows, 60))
     })
   }
@@ -933,65 +930,65 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
 makeQCPlots = function(inobj, outfolder, reduction="umap")
 {
   
-  p=FeaturePlot(inobj, "nCount_RNA", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "nCount_RNA", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_ncount_rna", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "nFeature_RNA", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "nFeature_RNA", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_nfeature_rna", sep="/"), fig.width=8, fig.height=6)
 
   inobj$log_ncount = log(inobj$nCount_RNA)
   inobj$log_nfeature = log(inobj$nFeature_RNA)
 
-  p=FeaturePlot(inobj, "log_ncount", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "log_ncount", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_logncount_rna", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "log_nfeature", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "log_nfeature", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_lognfeature_rna", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "percent.mt", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "percent.mt", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_percent_mt", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "percent.rp", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "percent.rp", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_percent_rp", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "G2M.Score", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "G2M.Score", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_g2mscore", sep="/"), fig.width=8, fig.height=6)
 
-  p=FeaturePlot(inobj, "S.Score", reduction=reduction)
+  p=Seurat::FeaturePlot(inobj, "S.Score", reduction=reduction)
   save_plot(p, paste(outfolder, "fplot_sscore", sep="/"), fig.width=8, fig.height=6)
 
 
 
 
-  p=VlnPlot(inobj, "log_ncount", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "log_ncount", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_logncount_rna", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "log_nfeature", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "log_nfeature", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_lognfeature_rna", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "percent.mt", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "percent.mt", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_percent_mt", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "percent.rp", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "percent.rp", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_percent_rp", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "G2M.Score", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "G2M.Score", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_g2mscore", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "S.Score", group.by="idents")
+  p=Seurat::VlnPlot(inobj, "S.Score", group.by="idents")
   save_plot(p, paste(outfolder, "vplot_sscore", sep="/"), fig.width=12, fig.height=4)
 
 
   if ((reduction == "umap") && ("wnn_clusters" %in% names(inobj@meta.data)))
   {
-  p=VlnPlot(inobj, "log_ncount", group.by="wnn_clusters")
-  save_plot(p, paste(outfolder, "vplot_wnn_clusters_logncount_rna", sep="/"), fig.width=12, fig.height=4)
+    p=Seurat::VlnPlot(inobj, "log_ncount", group.by="wnn_clusters")
+    save_plot(p, paste(outfolder, "vplot_wnn_clusters_logncount_rna", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "log_nfeature", group.by="wnn_clusters")
-  save_plot(p, paste(outfolder, "vplot_wnn_clusters_lognfeature_rna", sep="/"), fig.width=12, fig.height=4)
+    p=Seurat::VlnPlot(inobj, "log_nfeature", group.by="wnn_clusters")
+    save_plot(p, paste(outfolder, "vplot_wnn_clusters_lognfeature_rna", sep="/"), fig.width=12, fig.height=4)
 
-  p=VlnPlot(inobj, "percent.mt", group.by="wnn_clusters")
-  save_plot(p, paste(outfolder, "vplot_wnn_clusters_percent_mt", sep="/"), fig.width=12, fig.height=4)
+    p=Seurat::VlnPlot(inobj, "percent.mt", group.by="wnn_clusters")
+    save_plot(p, paste(outfolder, "vplot_wnn_clusters_percent_mt", sep="/"), fig.width=12, fig.height=4)
   }
 
 
@@ -1013,7 +1010,7 @@ makeQCPlots = function(inobj, outfolder, reduction="umap")
 #' @param a vector of expression values
 #' @param suffix column suffix
 #'
-#' @return
+#' @return list of summarised expression data
 #' @export
 #'
 makesummary_getPop = function(a, suffix)
@@ -1026,7 +1023,7 @@ makesummary_getPop = function(a, suffix)
       f = c(0,0,0,0,0)
       meanA = 0
   } else {
-      f = fivenum(a)
+      f = stats::fivenum(a)
       meanA = mean(a)
   }
   
@@ -1052,19 +1049,19 @@ makesummary_getPop = function(a, suffix)
 #' @param slot data slot to pull expression values from
 #' @param assay the assay from which to pull the expression values
 #'
-#' @return
+#' @return list of summarised expression data
 #' @export
 #'
 getExprData_getPop = function(markerObj, markerCells, sampleSuffix, slot="data", assay="RNA")
 {
-  expTable = GetAssayData(object = subset(x=markerObj, cells=markerCells), slot = slot, assay=assay)
+  expTable = Seurat::GetAssayData(object = subset(x=markerObj, cells=markerCells), slot = slot, assay=assay)
   allgenes = rownames(expTable)
   cellnames = colnames(expTable)
   
   expt.r = as(expTable, "TsparseMatrix") # was dgTMatrix
   expt.df = data.frame(r = expt.r@i + 1, c = expt.r@j + 1, x = expt.r@x)
   
-  DT <- data.table(expt.df)
+  DT <- data.table::data.table(expt.df)
   res = DT[, as.list(makesummary_getPop(x, sampleSuffix)), by = r]
   anumCol = paste("anum", sampleSuffix, sep=".")
   res[[anumCol]] = length(cellnames)
@@ -1085,29 +1082,28 @@ getExprData_getPop = function(markerObj, markerCells, sampleSuffix, slot="data",
 #' @param assay assay to pull expression values from
 #' @param group.by grouping of the clusters, same as the one used for markers
 #'
-#' @return
+#' @return data frame with gene expression values
 #' @export
 #'
-#' @examples
 getDEXpressionDF = function ( scdata, markers, assay="SCT", group.by=NULL)
 {
   outDF = NULL
-  DefaultAssay(object=scdata) = assay
+  Seurat::DefaultAssay(object=scdata) = assay
   print(group.by)
   if (is.null(group.by))
   {
-    clusterIDs = as.character(sort(unique(Idents(scdata))))
+    clusterIDs = as.character(sort(unique(Seurat::Idents(scdata))))
   } else {
     clusterIDs = as.character(sort(unique(scdata[[group.by]][,])))
   }
-  scCells = Idents(scdata)
+  scCells = Seurat::Idents(scdata)
   scCells = names(scCells)
   scCells = unlist(as.character(scCells))
   for (clusterID in clusterIDs){
       
     print(clusterID)
     
-    cellIdents = Idents(scdata)
+    cellIdents = Seurat::Idents(scdata)
     
     if (is.null(group.by))
     {
@@ -1172,7 +1168,7 @@ makeDEResults = function(inobj, group.by=NULL, assay="SCT", test="wilcox")
 {
   if (is.null(group.by))
   {
-    clusterIDs = as.character(sort(unique(Idents(inobj))))
+    clusterIDs = as.character(sort(unique(Seurat::Idents(inobj))))
   } else {
     clusterIDs = as.character(sort(unique(inobj[[group.by]][,])))
   }
@@ -1182,7 +1178,7 @@ makeDEResults = function(inobj, group.by=NULL, assay="SCT", test="wilcox")
   for(clusterID in clusterIDs)
   {
   
-      cellIdents = Idents(inobj)
+      cellIdents = Seurat::Idents(inobj)
       
       if (is.null(group.by))
       {
@@ -1202,7 +1198,7 @@ makeDEResults = function(inobj, group.by=NULL, assay="SCT", test="wilcox")
         print(paste("Skipping cluster", clusterID, "due to < 3 cells!"))  
         next
       }
-      deMarkers = FindMarkers(inobj, assay=assay, ident.1 = cellIdents.c, test.use=test) 
+      deMarkers = Seurat::FindMarkers(inobj, assay=assay, ident.1 = cellIdents.c, test.use=test) 
       retList[[clusterID]] = deMarkers
   
   }
@@ -1246,7 +1242,7 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
         print("Dir already exists!")
     }
     
-    markers = FindMarkers(scdata, assay=assay, ident.1 = cellsID1, ident.2 = cellsID2, test.use=test, logfc.threshold=logfc.threshold)
+    markers = Seurat::FindMarkers(scdata, assay=assay, ident.1 = cellsID1, ident.2 = cellsID2, test.use=test, logfc.threshold=logfc.threshold)
     
     outvalues1 = getExprData_getPop(scdata, cellsID1, suffix1, assay=assay)
     outvalues2 = getExprData_getPop(scdata, cellsID2, suffix2, assay=assay) 
@@ -1258,8 +1254,8 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
     
     joinedData = joinedData[!is.na(joinedData$p_val),]
     
-    suffix1=str_replace_all(str_replace_all(suffix1, "\\/", "_"), " ", "_")
-    suffix2=str_replace_all(str_replace_all(suffix2, "\\/", "_"), " ", "_")
+    suffix1=stringr::str_replace_all(str_replace_all(suffix1, "\\/", "_"), " ", "_")
+    suffix2=stringr::str_replace_all(str_replace_all(suffix2, "\\/", "_"), " ", "_")
 
     
     outfile = paste(outfolder, "/", prefix, ".", suffix1, "_", suffix2, ".tsv", sep="")
@@ -1270,7 +1266,7 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
     outfile = paste(outfolder, "/", prefix, ".", suffix1, "_", suffix2, ".xlsx", sep="")
     
     message(outfile)
-    write_xlsx(joinedData, path=outfile)
+    writexl::write_xlsx(joinedData, path=outfile)
 
     if (heatmap.plot)
     {
@@ -1293,10 +1289,10 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
         cellAnnot[cellsID2] = suffix2
         obj.rel$heatmap_annot = cellAnnot
 
-        obj.rel = ScaleData(obj.rel, features=genes.interest)
+        obj.rel = Seurat::ScaleData(obj.rel, features=genes.interest)
 
-        p=DoHeatmap(obj.rel, genes.interest, group.by="heatmap_annot")+ scale_fill_gradientn(colors = scaleColors)
-        p=p + ggtitle("Heatmap of DE genes; Data scaled by shown genes.")
+        p=Seurat::DoHeatmap(obj.rel, genes.interest, group.by="heatmap_annot")+ ggplot2::scale_fill_gradientn(colors = scaleColors)
+        p=p + ggplot2::ggtitle("Heatmap of DE genes; Data scaled by shown genes.")
         save_plot(p, paste(outfolder, paste("hplot_", prefix, ".", suffix1, "_", suffix2, sep=""), sep="/"), fig.width=7, fig.height=0.3*length(genes.interest))
       }
     }
@@ -1332,7 +1328,7 @@ compareCellsByCluster = function(inobj, cellsID1, cellsID2, suffix1, suffix2, gr
 {
   if (is.null(group.by))
   {
-    clusterIDs = as.character(sort(unique(Idents(inobj))))  
+    clusterIDs = as.character(sort(unique(Seurat::Idents(inobj))))  
   } else {
     clusterIDs = as.character(sort(unique(inobj[[group.by]][,])))
   }
@@ -1342,7 +1338,7 @@ compareCellsByCluster = function(inobj, cellsID1, cellsID2, suffix1, suffix2, gr
   for(clusterID in clusterIDs)
   {
   
-      cellIdents = Idents(inobj)
+      cellIdents = Seurat::Idents(inobj)
       
       if (is.null(group.by))
       {
@@ -1373,7 +1369,7 @@ compareCellsByCluster = function(inobj, cellsID1, cellsID2, suffix1, suffix2, gr
         next
       }
 
-      clusterID_file=str_replace_all(str_replace_all(clusterID, "\\/", "_"), " ", "_")
+      clusterID_file=stringr::str_replace_all(str_replace_all(clusterID, "\\/", "_"), " ", "_")
 
   
       deMarkers = compareClusters(scdata=inobj,
@@ -1456,8 +1452,8 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
       next()
     }
     
-    cName = str_replace_all(str_replace_all(cName, "\\/", "_"), " ", "_")
-    popName = str_to_lower( str_replace_all(str_replace_all(str_replace_all( cName, "\\(|\\)| ", "_"), "__", "_"), "_$", "") )
+    cName = stringr::str_replace_all(str_replace_all(cName, "\\/", "_"), " ", "_")
+    popName = stringr::str_to_lower( stringr::str_replace_all(str_replace_all(str_replace_all( cName, "\\(|\\)| ", "_"), "__", "_"), "_$", "") )
 
     plotlabels = NULL
     
@@ -1523,7 +1519,7 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
     filename=paste(outname, popName, "png", sep=".")
     print(filename)
     png(filename=filename,width = 1200, height = 700)
-    p=EnhancedVolcano(indf[,c('avg_log2FC', 'p_val_adj')],
+    p=EnhancedVolcano::EnhancedVolcano(indf[,c('avg_log2FC', 'p_val_adj')],
       lab = indf$gene,
       selectLab=plotlabels,
       x = 'avg_log2FC',
@@ -1553,7 +1549,7 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
         filename=paste(outname, popName, "pdf", sep=".")
     print(filename)
         pdf(filename,width = 12, height = 7)
-    p=EnhancedVolcano(indf,
+    p=EnhancedVolcano::EnhancedVolcano(indf,
       lab = indf$gene,
       selectLab=plotlabels,
       x = 'avg_log2FC',
@@ -1581,8 +1577,8 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
     
     filename=paste(outname, popName, "svg", sep=".")
     print(filename)
-    svglite(file = filename, width = 12, height = 7)
-    p=EnhancedVolcano(indf,
+    svglite::svglite(file = filename, width = 12, height = 7)
+    p=EnhancedVolcano::EnhancedVolcano(indf,
       lab = indf$gene,
       selectLab=plotlabels,
       x = 'avg_log2FC',

@@ -11,6 +11,28 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.2
 Depends: R (>= 4.0.0)
-Imports: 
-    deSolve, 
-    sfsmisc
+Imports: Tempora,
+            Seurat,
+            ggplot2,
+            cowplot,
+            stringr,
+            dplyr,
+            tidyverse,
+            pbapply,
+            clusterProfiler,
+            enrichplot,
+            data.table,
+            writexl,
+            EnhancedVolcano,
+            ggsunburst,
+            ggrepel,
+            RColorBrewer,
+            svglite,
+            ggpubr,
+            gtools,
+            purrr,
+            rstatix,
+            ComplexHeatmap,
+            circlize,
+            pbapply,
+            future

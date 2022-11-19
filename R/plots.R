@@ -1,4 +1,143 @@
 
+
+
+
+#' Combines several ggplot2 objects
+#'
+#' Combines several ggplot2 objects with cowplot and also stores its data
+#'
+#' @param ... ggplot2 objects
+#'
+#' @return summarized ggplot2 object
+#'
+#' @export
+combine_plot_grid = function(...)
+{
+  inplot = list(...)
+  
+  dataList = list()
+  for (i in 1:length(inplot))
+  {
+    dataList[[length(dataList)+1]] = inplot[[i]]$data
+  }
+  
+  p=cowplot::plot_grid(...)
+  
+  p$data = dataList
+  
+  return(p)
+}
+
+
+#' Combines several ggplot2 objects
+#'
+#' Combines several ggplot2 objects with cowplot and also stores its data
+#'
+#' @param plotlist ggplot2 objects
+#' @param ... additional parameters forwarded to cowplot's plot_grid
+#'
+#' @return summarized ggplot2 object
+#'
+#' @export
+combine_plot_grid_list = function(plotlist, ...)
+{
+ 
+  dataList = list()
+  for (i in 1:length(plotlist))
+  {
+    dataList[[i]] = plotlist[[i]]$data
+  }
+  
+  p=cowplot::plot_grid(plotlist=plotlist, ...)
+  
+  p$data = dataList
+  
+  return(p)
+}
+
+
+#' Saves a ggplot object to png, pdf and svg
+#'
+#' Also saves a data file containing all data relevant to reproduce the plot
+#'
+#' @param plotobj ggplot2 object to plot
+#' @param outname path (without prefix) to where the plot should be stored, e.g. folder1/plot1
+#' @param fig.width width of the plot
+#' @param fig.height height of the plot
+#' @param save.data whether to also save the data
+#'
+#' @return None
+#'
+#' @export
+save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
+{
+  print(paste(outname, fig.width, fig.height))
+  
+  fname=paste(outname, "png", sep=".")
+  print(paste("Saving to file", fname))
+  png(filename=fname, width = fig.width, height = fig.height, units = 'in', res = 300)#width = fig.width*100, height=fig.height*100)
+  plot(plotobj)
+  dev.off()
+  
+  fname=paste(outname, "pdf", sep=".")
+  print(paste("Saving to file", fname))
+  pdf(file=fname, width = fig.width, height=fig.height)
+  plot(plotobj)
+  dev.off()
+  
+
+  fname=paste(outname, "svg", sep=".")
+  print(paste("Saving to file", fname))
+  svglite::svglite(file = fname, width = fig.width, height = fig.height)
+  plot(plotobj)
+  dev.off()
+  
+
+  if (save.data)
+  {
+    if (class(plotobj$data) %in% c("list"))
+    {
+      print("list case")
+      for (i in 1:length(plotobj$data))
+      {
+        fname = paste(outname,i, "data", sep=".")
+        print(paste("Saving to file", fname))
+        
+        if (class(plotobj$data[[i]]) %in% c("list"))
+        {
+            print("multi list case")
+            for (j in 1:length(plotobj$data[[i]]))
+            {
+                fname = paste(outname,i, j, "data", sep=".")
+                print(paste("Saving to file", fname, class(plotobj$data[[i]][[j]])))
+
+                if (class(plotobj$data[[i]][[j]]) %in% c("list", "waiver"))
+                {
+                  next()
+                }
+                write.table(plotobj$data[[i]][[j]], fname, row.names = TRUE, sep="\t")    
+
+            }
+        } else {
+            
+            tryCatch(write.table(plotobj$data[[i]], fname, row.names = TRUE, sep="\t"), error = function(e) NULL)
+        }
+        
+      }
+    } else {
+      
+        fname = paste(outname,"data", sep=".")
+        print(paste("Saving to file", fname))
+
+        write.table(plotobj$data, paste(outname, "data", sep="."), row.names = TRUE, sep="\t")
+    }
+  }
+  
+  return(plotobj)
+}
+
+
+
 #' Creates a combined Violin- and Box-Plot
 #'
 #' Creates a combined Violin- and Box-Plot
@@ -12,6 +151,7 @@
 #' @param min.threshold minimum number of cells in group
 #' @param col named list of colors
 #' @param per.sample performs the min.threshold check per split-by-group
+#' 
 #'
 #' @return ggplot2
 #'
@@ -84,13 +224,13 @@ VlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.size=0
       }
       
 
-      plots=VlnPlot(obj.sc.subset, gene, group.by=group.by, split.by=split.by, pt.size=pt.size, assay=assay, col=ucols)
-      plots = plots + geom_boxplot(color="grey", alpha=0.4) + stat_summary(fun=mean, geom="point", color="black", size=4)
+      plots=Seurat::VlnPlot(obj.sc.subset, gene, group.by=group.by, split.by=split.by, pt.size=pt.size, assay=assay, col=ucols)
+      plots = plots + ggplot2::geom_boxplot(color="grey", alpha=0.4) + ggplot2::stat_summary(fun=mean, geom="point", color="black", size=4)
 
     } else {
 
-      plots=VlnPlot(obj.sc.subset, gene, group.by=group.by, split.by=split.by, pt.size=pt.size, assay=assay, col=col)
-      plots = plots + geom_boxplot(color="grey", alpha=0.4, position =position_dodge(width = 0.9)) + stat_summary(fun=mean, geom="point", aes(group=split), position=position_dodge(.9), color="black", size=4)
+      plots=Seurat::VlnPlot(obj.sc.subset, gene, group.by=group.by, split.by=split.by, pt.size=pt.size, assay=assay, col=col)
+      plots = plots + ggplot2::geom_boxplot(color="grey", alpha=0.4, position =position_dodge(width = 0.9)) + ggplot2::stat_summary(fun=mean, geom="point", aes(group=split), position=position_dodge(.9), color="black", size=4)
 
     }
     
@@ -114,7 +254,6 @@ VlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.size=0
 #'
 #' @return ggplot2
 #'
-#'
 #' @export
 SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.size=0, assay="RNA", min.threshold=3, col=NULL, per.sample=TRUE)
 {
@@ -136,7 +275,7 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
       }
 
       p=VlnBoxPlot( subset(obj.sc, cells=subsetcellnames), gene, group.by=group.by, split.by=NULL, pt.size=pt.size, assay=assay, min.threshold=min.threshold, col=scol, per.sample=per.sample)
-      p = p + ggtitle(paste(gene, "-", sname))
+      p = p + ggplot2::ggtitle(paste(gene, "-", sname))
       vplots[[sname]] = p
     }
 
@@ -160,10 +299,10 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @param dsrCols named list of colors
 #' @param onelineLabel significance-test results in one line
 #'
-#' @return ggplot2
+#' @return ggplot2 object
 #'
 #' @todo min.threshold!
-#'
+#' 
 #' @export
 pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, dsrCols, onelineLabel=FALSE, pt.size=0)
 {
@@ -200,60 +339,58 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
   print(head(dataDF))
 
 
-keepAC = c()
-for (ac in unique(dataDF[[group.by]]))
-{
-  subdf = dataDF %>% filter(.data[[group.by]] == ac)
-  numDiffGroups = length(unique(subdf[[split.by]]))
-  print(paste(ac, numDiffGroups))
-
-  if (numDiffGroups > 1)
+  keepAC = c()
+  for (ac in unique(dataDF[[group.by]]))
   {
-    keepAC = c(keepAC, ac)
+    subdf = dataDF %>% filter(.data[[group.by]] == ac)
+    numDiffGroups = length(unique(subdf[[split.by]]))
+    print(paste(ac, numDiffGroups))
+
+    if (numDiffGroups > 1)
+    {
+      keepAC = c(keepAC, ac)
+    }
   }
-}
+    
+  stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>%
+  dplyr::group_by_at(group.by, .add=T) %>%
+  rstatix::pairwise_t_test(
+      as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
+      p.adjust.method = "BH"
+      )
 
+  print(as.data.frame(stat.test))
 
-  
-stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>%
-group_by_at(group.by, .add=T) %>%
-pairwise_t_test(
-    as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
-    p.adjust.method = "BH"
-    )
+  if (onelineLabel)
+  {
+    stat.test$label = paste("f=",formatC(stat.test$n1/stat.test$n2, digits=2), ", p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
+  } else {
+    stat.test$label = paste("n1=",stat.test$n1,",\n", "n2=",stat.test$n2,"\n","p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
+  }
 
-print(as.data.frame(stat.test))
+  maxValue = max(dataDF[,c(feature)])
 
-if (onelineLabel)
-{
-  stat.test$label = paste("f=",formatC(stat.test$n1/stat.test$n2, digits=2), ", p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
-} else {
-  stat.test$label = paste("n1=",stat.test$n1,",\n", "n2=",stat.test$n2,"\n","p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
-}
+  bxp <- ggplot2::ggplot(dataDF, ggplot2::aes_string(x=group.by, y=feature)) +
+        ggplot2::geom_violin(ggplot2::aes_string(fill=split.by), position = ggplot2::position_dodge(width = 0.9))
 
-maxValue = max(dataDF[,c(feature)])
+  if (dot.size > 0)
+  {
+    bxp = bxp + ggplot2::geom_jitter(ggplot2::aes_string(fill=split.by), position =ggplot2::position_jitterdodge(dodge.width=0.9), size=pt.size)
+  }
 
-bxp <- ggplot(dataDF, aes_string(x=group.by, y=feature)) +
-       geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9))
+  bxp = bxp +
+        ggplot2::geom_boxplot(ggplot2::aes_string(fill=split.by),color="grey", alpha=0.4, position =ggplot2::position_dodge(width = 0.9)) +
+        ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust=0.5, hjust=1.0),
+              panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),
+              panel.grid.minor = ggplot2::element_blank(),
+              axis.line = ggplot2::element_line(colour = "black"),panel.background = ggplot2::element_blank())+
+        ggplot2::scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])+ggplot2::labs(fill='Group')
 
-if (dot.size > 0)
-{
-  bxp = bxp + geom_jitter(aes_string(fill=split.by), position =position_jitterdodge(dodge.width=0.9), size=pt.size)
-}
+  stat.test = stat.test[stat.test$p.adj < 0.05,]
 
-bxp = bxp +
-       geom_boxplot(aes_string(fill=split.by),color="grey", alpha=0.4, position =position_dodge(width = 0.9)) +
-       theme(axis.text.x = element_text(angle = 90, vjust=0.5, hjust=1.0),
-             panel.border = element_blank(), panel.grid.major = element_blank(),
-             panel.grid.minor = element_blank(),
-             axis.line = element_line(colour = "black"),panel.background = element_blank())+
-       scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])+labs(fill='Group')
-
-stat.test = stat.test[stat.test$p.adj < 0.05,]
-
-stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8)#, y.trans=function(x){x*1.1})
-bxp = bxp + stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ylim(c(-0.5, ceiling(maxValue*1.2)))
-return(bxp)
+  stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8)#, y.trans=function(x){x*1.1})
+  bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(c(-0.5, ceiling(maxValue*1.2)))
+  return(bxp)
 }
 
 
@@ -290,17 +427,17 @@ if (!is.null(scale.by))
 if (is.null(scale.by))
 {
     print("Fetching average expression")
-    avgexp = AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
+    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
 
 } else {
 
   if (scale.by %in% c("ALL"))
   {
     print("Fetching average expression")
-    avgexp = AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
+    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
   } else {
     print("Fetching global scaled average expression")
-    avgexp = AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
+    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
   }
 }
 
@@ -459,7 +596,7 @@ if (!is.null(scale.by) && (scale.by=="ALL"))
 
   }
 
-  p = Heatmap(mat, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=title, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+  p = ComplexHeatmap::Heatmap(mat, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=title, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
 
   return(p)
 
@@ -547,12 +684,12 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     if (is.null(scale.by) || scale.by %in% c("ALL", "GROUP"))
     {
       print("Fetching average expression")
-      avgexp = AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="data")$RNA
+      avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="data")$RNA
 
     } else {
 
       print("Fetching global scaled average expression")
-      avgexp = AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
+      avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
     }  
 
     #
@@ -664,10 +801,10 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 
     }
   
-    col_fun = colorRamp2(scale.limits, c("blue", "white", "red"))
+    col_fun = circlize::colorRamp2(scale.limits, c("blue", "white", "red"))
     print(col_fun)
 
-    p = Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
     
     if (showlegend)
     {
@@ -752,7 +889,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     
     scobj_subset = subset(scobj, cells=plotCells)
 
-    avgexpMat = AverageExpression(scobj_subset, features=featureGenes, group.by=group.by, assay=assay, slot=use.slot)$RNA
+    avgexpMat = Seurat::AverageExpression(scobj_subset, features=featureGenes, group.by=group.by, assay=assay, slot=use.slot)$RNA
     
     if (use.slot=="data")
     {
@@ -760,9 +897,9 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     }
     
 
-    avgExpr = as.data.frame(data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
+    avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
 
-    p=DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
+    p=Seurat::DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
 
     avgExpr = merge(avgExpr, p$data[, c("id", "features.plot", "pct.exp")], by=c("id", "features.plot"))
     
@@ -923,7 +1060,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
       originalSorting = levels(originalGroups)
       combinedDataDF$id = factor(combinedDataDF$id, levels = originalSorting)
     } else {
-      combinedDataDF$id = factor(combinedDataDF$id, levels = mixedsort(as.character(unique(combinedDataDF$id))))
+      combinedDataDF$id = factor(combinedDataDF$id, levels = gtools::mixedsort(as.character(unique(combinedDataDF$id))))
     }
 
 
@@ -995,7 +1132,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     print(pData)
 
     pData2 = merge(x=pData,y=ctFractions[[plotName]],by.x="id", by.y=group.by,all.x=TRUE)
-    pData <-pData2 %>% mutate(featuren=as.numeric(features.plot), percn=100*perc)  
+    pData <-pData2 %>% dplyr::mutate(featuren=as.numeric(features.plot), percn=100*perc)  
 
     print(pData)
     
@@ -1006,24 +1143,24 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
 
     print(pData)
     
-    plotElem <- ggplot(pData) +
-      scale_x_continuous(breaks=pData$featuren, labels=pData$features.plot) +
-      scale_y_continuous(breaks=idDF$idn, labels=idDF$id, limits = c(min(idDF$idn)-0.6, max(idDF$idn)+0.6))+
-      geom_rect(aes(xmin=featuren-.5, xmax=featuren+.5, ymin = idn-0.5, ymax = idn+0.5, fill=percn), alpha = 0.4, linetype="blank") +
-      scale_fill_distiller(palette='Spectral', limits = fillLimits)+
-      scale_size_continuous(range = c(0, 10))+
-      geom_point(aes(x=featuren, y=idn, colour = avg.exp.scaled2, size = pct.exp)) +
-      scale_color_gradient2(limits=c(col.min, col.max), low = cols[1], mid=cols[2], high = cols[3])+
-      guides(color=guide_colourbar(title=title.expression, order = 1),
-      size=guide_legend(title="Percent Expressing", order = 2),
-      fill=guide_colourbar(title=title.cellabundance, order = 3))
+    plotElem <- ggplot2::ggplot(pData) +
+      ggplot2::scale_x_continuous(breaks=pData$featuren, labels=pData$features.plot) +
+      ggplot2::scale_y_continuous(breaks=idDF$idn, labels=idDF$id, limits = c(min(idDF$idn)-0.6, max(idDF$idn)+0.6))+
+      ggplot2::geom_rect(ggplot2::aes(xmin=featuren-.5, xmax=featuren+.5, ymin = idn-0.5, ymax = idn+0.5, fill=percn), alpha = 0.4, linetype="blank") +
+      ggplot2::scale_fill_distiller(palette='Spectral', limits = fillLimits)+
+      ggplot2::scale_size_continuous(range = c(0, 10))+
+      ggplot2::geom_point(ggplot2::aes(x=featuren, y=idn, colour = avg.exp.scaled2, size = pct.exp)) +
+      ggplot2::scale_color_gradient2(limits=c(col.min, col.max), low = cols[1], mid=cols[2], high = cols[3])+
+      ggplot2::guides(color=ggplot2::guide_colourbar(title=title.expression, order = 1),
+      size=ggplot2::guide_legend(title="Percent Expressing", order = 2),
+      fill=ggplot2::guide_colourbar(title=title.cellabundance, order = 3))
     
-    plotElem = plotElem + theme(axis.title.x=element_blank(), axis.title.y=element_blank(), legend.position = "none", panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-panel.background = element_blank(), axis.line = element_line())
+    plotElem = plotElem + ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank(), legend.position = "none", panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
+panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line())
 
     if (rotate.x)
     {
-      plotElem = plotElem + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+      plotElem = plotElem + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5))
     }
 
     plotList[[plotName]] = plotElem
@@ -1047,13 +1184,13 @@ panel.background = element_blank(), axis.line = element_line())
   print("Preparing Legend")
   
   # extract a legend that is laid out horizontally #
-  legend_b <- get_legend(
+  legend_b <- ggpubr::get_legend(
     plotElem + 
-      guides(color = guide_colorbar(title = title.expression, direction="horizontal"))+ #guide_legend(nrow = 1, override.aes = list(size=6)))+
-      theme(legend.position = "bottom", legend.box = "vertical")
+      ggplot2::guides(color = ggplot2::guide_colorbar(title = title.expression, direction="horizontal"))+ #guide_legend(nrow = 1, override.aes = list(size=6)))+
+      ggplot2::theme(legend.position = "bottom", legend.box = "vertical")
   )
   
-  title <- ggdraw() + draw_label(title, fontface='bold')
+  title <- cowplot::ggdraw() + cowplot::draw_label(title, fontface='bold')
   print("Preparing plot")
 
   dataList = list()
@@ -1097,7 +1234,7 @@ cbind.fill <- function(...){
 
 make_descr_label = function(plot, descr)
 {
-  descrLabel <- ggdraw() + draw_label(descr, fontface='bold', angle = 0)
+  descrLabel <- cowplot::ggdraw() + cowplot::draw_label(descr, fontface='bold', angle = 0)
   
   pe = combine_plot_grid_list(plotlist=list("a"=descrLabel, "b"=plot), ncol=1, nrow=2, labels=NULL,rel_heights = c(0.1, 1), align = "h", axis = "l")
   
@@ -1105,139 +1242,3 @@ make_descr_label = function(plot, descr)
 }
 
 
-#' Combines several ggplot2 objects
-#'
-#' Combines several ggplot2 objects with cowplot and also stores its data
-#'
-#' @param ... ggplot2 objects
-#'
-#' @return summarized ggplot2 object
-#'
-#'
-#' @export
-combine_plot_grid = function(...)
-{
-  inplot = list(...)
-  
-  dataList = list()
-  for (i in 1:length(inplot))
-  {
-    dataList[[length(dataList)+1]] = inplot[[i]]$data
-  }
-  
-  p=cowplot::plot_grid(...)
-  
-  p$data = dataList
-  
-  return(p)
-}
-
-
-#' Combines several ggplot2 objects
-#'
-#' Combines several ggplot2 objects with cowplot and also stores its data
-#'
-#' @param plotlist ggplot2 objects
-#' @param ... additional parameters forwarded to cowplot's plot_grid
-#'
-#' @return summarized ggplot2 object
-#'
-#'
-#' @export
-combine_plot_grid_list = function(plotlist, ...)
-{
- 
-  dataList = list()
-  for (i in 1:length(plotlist))
-  {
-    dataList[[i]] = plotlist[[i]]$data
-  }
-  
-  p=cowplot::plot_grid(plotlist=plotlist, ...)
-  
-  p$data = dataList
-  
-  return(p)
-}
-
-
-#' Saves a ggplot object to png, pdf and svg
-#'
-#' Also saves a data file containing all data relevant to reproduce the plot
-#'
-#' @param plotobj ggplot2 object to plot
-#' @param outname path (without prefix) to where the plot should be stored, e.g. folder1/plot1
-#' @param fig.width width of the plot
-#' @param fig.height height of the plot
-#' @param save.data whether to also save the data
-#'
-#' @return None
-#'
-#'
-#' @export
-save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
-{
-  print(paste(outname, fig.width, fig.height))
-  
-  fname=paste(outname, "png", sep=".")
-  print(paste("Saving to file", fname))
-  png(filename=fname, width = fig.width, height = fig.height, units = 'in', res = 300)#width = fig.width*100, height=fig.height*100)
-  plot(plotobj)
-  dev.off()
-  
-  fname=paste(outname, "pdf", sep=".")
-  print(paste("Saving to file", fname))
-  pdf(file=fname, width = fig.width, height=fig.height)
-  plot(plotobj)
-  dev.off()
-  
-
-  fname=paste(outname, "svg", sep=".")
-  print(paste("Saving to file", fname))
-  svglite::svglite(file = fname, width = fig.width, height = fig.height)
-  plot(plotobj)
-  dev.off()
-  
-
-  if (save.data)
-  {
-    if (class(plotobj$data) %in% c("list"))
-    {
-      print("list case")
-      for (i in 1:length(plotobj$data))
-      {
-        fname = paste(outname,i, "data", sep=".")
-        print(paste("Saving to file", fname))
-        
-        if (class(plotobj$data[[i]]) %in% c("list"))
-        {
-            print("multi list case")
-            for (j in 1:length(plotobj$data[[i]]))
-            {
-                fname = paste(outname,i, j, "data", sep=".")
-                print(paste("Saving to file", fname, class(plotobj$data[[i]][[j]])))
-
-                if (class(plotobj$data[[i]][[j]]) %in% c("list", "waiver"))
-                {
-                  next()
-                }
-                write.table(plotobj$data[[i]][[j]], fname, row.names = TRUE, sep="\t")    
-
-            }
-        } else {
-            
-            tryCatch(write.table(plotobj$data[[i]], fname, row.names = TRUE, sep="\t"), error = function(e) NULL)
-        }
-        
-      }
-    } else {
-      
-        fname = paste(outname,"data", sep=".")
-        print(paste("Saving to file", fname))
-
-        write.table(plotobj$data, paste(outname, "data", sep="."), row.names = TRUE, sep="\t")
-    }
-  }
-  
-  return(plotobj)
-}
