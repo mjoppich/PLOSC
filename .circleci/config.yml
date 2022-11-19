@@ -16,8 +16,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: "Deps"
+          command: "apt update && apt install libcurl4-openssl-dev libssl-dev libxml2-dev"
       - run:
           name: "WhichR"
           command: "which R"
