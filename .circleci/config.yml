@@ -17,7 +17,7 @@ jobs:
       - checkout
       - run:
           name: "Deps"
-          command: "apt update && apt install -y libcurl4-openssl-dev libssl-dev libxml2-dev"
+          command: "apt update && apt install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev"
       - run:
           name: "WhichR"
           command: "which R"
