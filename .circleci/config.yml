@@ -23,10 +23,10 @@ jobs:
           command: "which R"
       - run:
           name: "Install devtools"
-          command: "R -e \" options(pkgType='binary'); install.packages(c('BiocManager', 'devtools'))\""
+          command: "R -e \" install.packages(c('BiocManager', 'devtools'))\""
       - run:
           name: "Install Bioconductor packages"
-          command: "R -e \" options(pkgType='binary'); BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
+          command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
       - run:
           name: "Install"
           command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
