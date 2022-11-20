@@ -23,7 +23,7 @@ jobs:
           command: "which R && add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
       - run:
           name: "Install devtools"
-          command: "apt install -y r-cran-devtools r-cran-biocmanager"
+          command: "apt install -y r-cran-devtools r-cran-biocmanager r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen"
       - run:
           name: "Install Bioconductor packages"
           command: "R -e \" BiocManager::install(c('GSVA', 'GSEABase', 'EnhancedVolcano', 'ComplexHeatmap', 'circlize', 'biomaRt', 'clusterProfiler', 'enrichplot', 'ggpubr', 'rstatix'), Ncpus = 4)\""
