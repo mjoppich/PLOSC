@@ -17,13 +17,13 @@ jobs:
       - checkout
       - run:
           name: "Deps"
-          command: "apt update && apt install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
+          command: "apt update && apt install -y software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
       - run:
           name: "WhichR"
-          command: "which R"
+          command: "which R && add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
       - run:
           name: "Install devtools"
-          command: "R -e \" install.packages(c('BiocManager', 'devtools'))\""
+          command: "apt install r-cran-devtools r-cran-biocmanager"
       - run:
           name: "Install Bioconductor packages"
           command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
