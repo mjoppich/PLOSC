@@ -9,7 +9,7 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: rstudio/r-base:4.2-jammy
+      - image: r-base
     resource_class: medium
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
@@ -17,7 +17,7 @@ jobs:
       - checkout
       - run:
           name: "Deps"
-          command: "apt update && apt install -y software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
+          command: "apt update && apt install -y gpg dirmngr gpg-agent software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
       - run:
           name: "WhichR"
           command: "which R && add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
@@ -26,7 +26,7 @@ jobs:
           command: "apt install -y r-cran-devtools r-cran-biocmanager"
       - run:
           name: "Install Bioconductor packages"
-          command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'), Ncpus = 4)\""
+          command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'ComplexHeatmap', 'circlize', 'biomaRt'), Ncpus = 4)\""
       - run:
           name: "Install"
           command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
