@@ -26,7 +26,10 @@ jobs:
           command: "apt install -y r-cran-devtools r-cran-biocmanager"
       - run:
           name: "Install Bioconductor packages"
-          command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'ComplexHeatmap', 'circlize', 'biomaRt'), Ncpus = 4)\""
+          command: "R -e \" BiocManager::install(c('EnhancedVolcano', 'ComplexHeatmap', 'circlize', 'biomaRt', 'clusterProfiler', 'enrichplot', 'ggpubr', 'rstatix'), Ncpus = 4)\""
+      - run:
+          name: "Install"
+          command: "R -e \"devtools::install_github('didacs/ggsunburst'); devtools::install_github('BaderLab/Tempora')\""
       - run:
           name: "Install"
           command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
