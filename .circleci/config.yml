@@ -10,7 +10,7 @@ jobs:
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
       - image: r-base:latest
-    resource_class: medium
+    resource_class: small
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
@@ -22,17 +22,11 @@ jobs:
           name: "WhichR"
           command: "which R"
       - run:
-          name: "Install Repo CRAN"
-          command: "R -e \" options(repos = c(REPO_NAME = 'https://packagemanager.rstudio.com/cran/latest')) \""
-      - run:
-          name: "Install Repo BioC"
-          command: "R -e \" options(BioC_mirror = 'https://packagemanager.rstudio.com/bioconductor') \""
-      - run:
           name: "Install devtools"
-          command: "R -e \"install.packages(c('BiocManager', 'devtools'))\""
+          command: "R -e \"options(repos = c(REPO_NAME = 'https://packagemanager.rstudio.com/cran/latest')); install.packages(c('BiocManager', 'devtools'))\""
       - run:
           name: "Install Bioconductor packages"
-          command: "R -e \"BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
+          command: "R -e \"options(BioC_mirror = 'https://packagemanager.rstudio.com/bioconductor'); BiocManager::install(c('EnhancedVolcano', 'enrichplot', 'clusterProfiler', 'GSEABase', 'GSVA', 'ComplexHeatmap', 'circlize', 'biomaRt', 'limma'))\""
       - run:
           name: "Install"
           command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
