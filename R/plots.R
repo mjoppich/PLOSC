@@ -298,16 +298,68 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @param min.threshold minimum number of cells in group
 #' @param dsrCols named list of colors
 #' @param onelineLabel significance-test results in one line
+#' @param min.threshold minimum number of cells in group  
 #'
 #' @return ggplot2 object
-#'
-#' @todo min.threshold!
 #' 
 #' @export
-pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, dsrCols, onelineLabel=FALSE, pt.size=0)
+pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, dsrCols, onelineLabel=FALSE, pt.size=0, min.threshold=3)
 {
-  # dsrCols = list("Thrombus"="grey", "Blood="red")
   
+  remainingCells = NULL
+
+  if (is.null(split.by))
+  {
+
+      cellGroupDF = obj.sc[[ group.by ]]
+
+      countDF = table(cellGroupDF)
+      countDF = countDF[countDF >= min.threshold]
+
+      remainingClusters = rownames(countDF)
+      remainingCells = rownames(cellGroupDF)[ cellGroupDF[[group.by]] %in% remainingClusters ]
+
+  } else {
+
+    cellGroupDF = obj.sc[[ c(group.by, split.by) ]]
+
+    countDF = as.data.frame(table(cellGroupDF))
+
+    groupValues = unique(cellGroupDF[, group.by])
+    splitValues = unique(cellGroupDF[, split.by])
+    remainingCells = c() 
+    for (gv in groupValues)
+    {
+      
+      keepGroup = TRUE
+      for (sv in splitValues)
+      {
+        counts = (countDF %>% dplyr::filter(.data[[group.by]] == gv) %>% dplyr::filter(.data[[split.by]] == sv))$Freq
+
+        if (counts < min.threshold)
+        {
+          keepGroup = FALSE
+        }
+      }
+
+      if (keepGroup)
+      {
+        sCells = cellIDForClusters(obj.sc, split.by, splitValues)
+        gCells = cellIDForClusters(obj.sc, group.by, gv)
+        remainingCells = c(remainingCells, intersect(sCells, gCells))
+      } else {
+        print(paste("Removing group", gv))
+      }
+    }
+
+  }
+
+
+  print(paste("Existing Cells", length(colnames(obj.sc))))
+  print(paste("New Cells", length(remainingCells)))
+
+  obj.sc = subset(obj.sc, cells=remainingCells)
+
   if (is.null(split.values))
   {
     split.values = as.character(unique(obj.sc@meta.data[[split.by]]))
@@ -336,14 +388,13 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
     dataDF[[split.by]] = as.factor(dataDF[[split.by]])
   }
 
-  print(head(dataDF))
-
 
   keepAC = c()
   for (ac in unique(dataDF[[group.by]]))
   {
     subdf = dataDF %>% filter(.data[[group.by]] == ac)
     numDiffGroups = length(unique(subdf[[split.by]]))
+
     print(paste(ac, numDiffGroups))
 
     if (numDiffGroups > 1)
@@ -351,15 +402,15 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
       keepAC = c(keepAC, ac)
     }
   }
-    
+
+
+  
   stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>%
-  dplyr::group_by_at(group.by, .add=T) %>%
-  rstatix::pairwise_t_test(
+  group_by_at(group.by, .add=T) %>%
+  pairwise_t_test(
       as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
       p.adjust.method = "BH"
       )
-
-  print(as.data.frame(stat.test))
 
   if (onelineLabel)
   {
@@ -369,27 +420,57 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
   }
 
   maxValue = max(dataDF[,c(feature)])
+  minValue = min(dataDF[,c(feature)])
 
-  bxp <- ggplot2::ggplot(dataDF, ggplot2::aes_string(x=group.by, y=feature)) +
-        ggplot2::geom_violin(ggplot2::aes_string(fill=split.by), position = ggplot2::position_dodge(width = 0.9))
+
+  if (!is.null(split.by))
+  {
+
+    groupValues = unique(dataDF[, group.by])
+    splitValues = unique(dataDF[, split.by])
+
+    remainingCells = c() 
+    for (gv in groupValues)
+    {
+      
+      keepGroup = TRUE
+      for (sv in splitValues)
+      {
+        subsetExprDF = (dataDF %>% dplyr::filter(.data[[group.by]] == gv) %>% dplyr::filter(.data[[split.by]] == sv))
+
+        featureSD = sd(subsetExprDF[ , c(feature)])
+
+        if (featureSD == 0)
+        {
+          dataDF[rownames(subsetExprDF)[1], c(feature)] = dataDF[rownames(subsetExprDF)[1], c(feature)] + 0.000001
+        }
+        
+      }
+    }
+  }
+
+
+
+  bxp <- ggplot(dataDF, aes_string(x=group.by, y=feature)) +
+        geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9), trim=FALSE)
 
   if (dot.size > 0)
   {
-    bxp = bxp + ggplot2::geom_jitter(ggplot2::aes_string(fill=split.by), position =ggplot2::position_jitterdodge(dodge.width=0.9), size=pt.size)
+    bxp = bxp + geom_jitter(aes_string(fill=split.by), position =position_jitterdodge(dodge.width=0.9), size=dot.size)
   }
 
   bxp = bxp +
-        ggplot2::geom_boxplot(ggplot2::aes_string(fill=split.by),color="grey", alpha=0.4, position =ggplot2::position_dodge(width = 0.9)) +
-        ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust=0.5, hjust=1.0),
-              panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),
-              panel.grid.minor = ggplot2::element_blank(),
-              axis.line = ggplot2::element_line(colour = "black"),panel.background = ggplot2::element_blank())+
-        ggplot2::scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])+ggplot2::labs(fill='Group')
+        geom_boxplot(aes_string(fill=split.by),color="grey", alpha=0.4, position =position_dodge(width = 0.9)) +
+        theme(axis.text.x = element_text(angle = 90, vjust=0.5, hjust=1.0),
+              panel.border = element_blank(), panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(colour = "black"),panel.background = element_blank())+
+        scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])+labs(fill='Group')
 
   stat.test = stat.test[stat.test$p.adj < 0.05,]
 
   stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8)#, y.trans=function(x){x*1.1})
-  bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(c(-0.5, ceiling(maxValue*1.2)))
+  bxp = bxp + stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ylim(c(floor(minValue*1.1), ceiling(maxValue*1.2)))
   return(bxp)
 }
 
