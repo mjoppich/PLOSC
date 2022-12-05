@@ -452,7 +452,7 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
 
 
   bxp <- ggplot(dataDF, aes_string(x=group.by, y=feature)) +
-        geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9), trim=FALSE)
+        geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9), trim=TRUE)
 
   if (dot.size > 0)
   {
