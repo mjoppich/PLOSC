@@ -298,14 +298,19 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @param min.threshold minimum number of cells in group
 #' @param dsrCols named list of colors
 #' @param onelineLabel significance-test results in one line
-#' @param min.threshold minimum number of cells in group  
+#' @param min.threshold minimum number of cells in group
+#' @param split.values values in split.by to consider
+#' @param yStepIncrease y distance between statistics
 #'
-#' @return ggplot2 object
+#' @return ggplot2 object 
 #' 
 #' @export
-pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, dsrCols, onelineLabel=FALSE, pt.size=0, min.threshold=3)
+plotPValueViolentBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.25)
 {
+  # dsrCols = list("Thrombus"="grey", "Blood="red")
   
+
+
   remainingCells = NULL
 
   if (is.null(split.by))
@@ -360,7 +365,7 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
 
   obj.sc = subset(obj.sc, cells=remainingCells)
 
-  if (is.null(split.values))
+  if ((is.null(split.values) && !is.null(split.by)))
   {
     split.values = as.character(unique(obj.sc@meta.data[[split.by]]))
     print(split.values)
@@ -374,7 +379,11 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
     dataDF[[feature]] = obj.sc@assays$RNA@data[feature, rownames(dataDF)]
   }
   
-  dataDF = dataDF[dataDF[[split.by]] %in% split.values, ]
+  if (!is.null(split.by))
+  {
+    dataDF = dataDF[dataDF[[split.by]] %in% split.values, ]
+  }
+  
 
   if (!is.null(levels(dataDF[[group.by]])))
   {
@@ -383,7 +392,7 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
     dataDF[[group.by]] = as.factor(dataDF[[group.by]])
   }
 
-  if (is.null(levels(dataDF[[split.by]])))
+  if ((!is.null(split.by)) && (is.null(levels(dataDF[[split.by]]))))
   {
     dataDF[[split.by]] = as.factor(dataDF[[split.by]])
   }
@@ -393,7 +402,14 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
   for (ac in unique(dataDF[[group.by]]))
   {
     subdf = dataDF %>% filter(.data[[group.by]] == ac)
-    numDiffGroups = length(unique(subdf[[split.by]]))
+
+    if (!is.null(split.by))
+    {
+      numDiffGroups = length(unique(subdf[[split.by]]))
+    } else {
+      numDiffGroups = 2
+    }
+    
 
     print(paste(ac, numDiffGroups))
 
@@ -403,18 +419,34 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
     }
   }
 
+  stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>% group_by_at(group.by, .add=T)
 
-  
-  stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>%
-  group_by_at(group.by, .add=T) %>%
+  if (!is.null(split.by))
+  {
+   stat.test = stat.test %>%
   pairwise_t_test(
       as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
       p.adjust.method = "BH"
       )
+  } else {
+
+        print(head(as.data.frame(stat.test)))
+
+
+    stat.test = as.data.frame(stat.test) %>%
+  pairwise_t_test(
+      as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
+      p.adjust.method = "BH"
+      )
+
+    print(stat.test)
+  }
+  
+
 
   if (onelineLabel)
   {
-    stat.test$label = paste("f=",formatC(stat.test$n1/stat.test$n2, digits=2), ", p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
+    stat.test$label = paste("n1=",stat.test$n1," ", "n2=",stat.test$n2,", p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
   } else {
     stat.test$label = paste("n1=",stat.test$n1,",\n", "n2=",stat.test$n2,"\n","p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
   }
@@ -449,7 +481,12 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
     }
   }
 
+  print("Creating Plot")
 
+  if (is.null(split.by))
+  {
+    split.by=group.by
+  }
 
   bxp <- ggplot(dataDF, aes_string(x=group.by, y=feature)) +
         geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9), trim=TRUE)
@@ -464,12 +501,16 @@ pValueVlnBoxPlot = function( obj.sc, feature, group.by, split.by, split.values, 
         theme(axis.text.x = element_text(angle = 90, vjust=0.5, hjust=1.0),
               panel.border = element_blank(), panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
-              axis.line = element_line(colour = "black"),panel.background = element_blank())+
-        scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])+labs(fill='Group')
+              axis.line = element_line(colour = "black"),panel.background = element_blank())+labs(fill='Group')
+        
+  if (!is.null(dsrCols))
+  {
+    bxp = bxp + scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])
+  }
 
   stat.test = stat.test[stat.test$p.adj < 0.05,]
 
-  stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8)#, y.trans=function(x){x*1.1})
+  stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8, step.increase=yStepIncrease)#, y.trans=function(x){x*1.1})
   bxp = bxp + stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ylim(c(floor(minValue*1.1), ceiling(maxValue*1.2)))
   return(bxp)
 }
