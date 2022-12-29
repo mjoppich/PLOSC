@@ -679,8 +679,6 @@ run.parallel=TRUE)
         t = plan()
         plan("sequential")
       }
-      print(plan())
-
       objlist.anchors <- FindIntegrationAnchors(object.list = objSamples,  reduction = gex.method.integration, dims = 1:gex.dims, anchor.features = features_gex, normalization.method=gex.method.normalization, k.anchor=gex.k.anchor, k.filter = gex.k.filter)
       obj.list.integrated <- IntegrateData(new.assay.name = "integrated_gex", anchorset = objlist.anchors, dims = 1:gex.dims, verbose=T, normalization.method = gex.method.normalization, k.weight=gex.k.weight)
       
