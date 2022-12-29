@@ -559,20 +559,20 @@ run.parallel=TRUE)
 
       objSamples = lapply(objSamples, function(x) {
         print(paste("Object", x@project.name))
-        DefaultAssay(x) <- add.assay
-        VariableFeatures(x) <- rownames(x) # all HTOs
+        Seurat::DefaultAssay(x) <- add.assay
+        Seurat::VariableFeatures(x) <- rownames(x) # all HTOs
 
         if (dim(x@assays[[add.assay]]@scale.data)[1] == 0)
         {
           if (!run.parallel)
           {
-            t = plan()
-            plan("sequential")
+            t = future::plan()
+            future::plan("sequential")
           }
-          x = ScaleData(x, assay=add.assay)
+          x = Seurat::ScaleData(x, assay=add.assay)
           if (!run.parallel)
           {
-            plan(t)
+            future::plan(t)
           }
 
         }
@@ -581,7 +581,7 @@ run.parallel=TRUE)
         {
           print("PCA ALREADY THERE")
         } else {
-          x = RunPCA(x,features = rownames(x),verbose = FALSE, reduction.name="pca", approx=FALSE, npcs=add.dims, assay=add.assay)
+          x = Seurat::RunPCA(x,features = rownames(x),verbose = FALSE, reduction.name="pca", approx=FALSE, npcs=add.dims, assay=add.assay)
         }
 
         return(x)
@@ -593,18 +593,18 @@ run.parallel=TRUE)
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
       assayData = rep(add.assay, length(objSamples))
-      objlist.anchors.add <- FindIntegrationAnchors(object.list = objSamples, assay=assayData, normalization.method = "LogNormalize",
+      objlist.anchors.add <- Seurat::FindIntegrationAnchors(object.list = objSamples, assay=assayData, normalization.method = "LogNormalize",
                                                     anchor.features = add.features.integration, dims = 1:add.dims, reduction = add.method.integration, k.filter = add.k.filter, k.anchor=add.k.anchor)
 
-      add.list.integrated <- IntegrateData(new.assay.name = "integrated_add", anchorset = objlist.anchors.add, normalization.method = "LogNormalize", dims=1:(add.dims-1), k.weight=add.k.weight)
+      add.list.integrated <- Seurat::IntegrateData(new.assay.name = "integrated_add", anchorset = objlist.anchors.add, normalization.method = "LogNormalize", dims=1:(add.dims-1), k.weight=add.k.weight)
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
 
@@ -624,7 +624,7 @@ run.parallel=TRUE)
 
     objSamples = lapply(objSamples, function(x) {
         print(paste("Object", x@project.name))
-        DefaultAssay(x) <- gex.assay
+        Seurat::DefaultAssay(x) <- gex.assay
         return(x)
     })
 
@@ -636,7 +636,7 @@ run.parallel=TRUE)
       if (gex.method.normalization == "SCT")
       {
         print("SCTransform")
-        objSamples <- lapply(X = objSamples, FUN = SCTransform, method = "glmGamPoi")
+        objSamples <- lapply(X = objSamples, FUN = sctransform::SCTransform, method = "glmGamPoi")
 
       }
 
@@ -644,9 +644,9 @@ run.parallel=TRUE)
       if (is.numeric(features.integration))
       {
         print("RunPCA")
-        objSamples <- lapply(X = objSamples, FUN = RunPCA, npcs=min(c(50, gex.dims)), verbose = FALSE, reduction.name="pca", assay=gex.assay)
+        objSamples <- lapply(X = objSamples, FUN = Seurat::RunPCA, npcs=min(c(50, gex.dims)), verbose = FALSE, reduction.name="pca", assay=gex.assay)
         print("Select Integration Features")
-        features_gex <- SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration, assay=rep(gex.assay, length(objSamples)))
+        features_gex <- Seurat::SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration, assay=rep(gex.assay, length(objSamples)))
       } else {
         features_gex = features.integration
         print("RunPCA on given features")
@@ -655,7 +655,7 @@ run.parallel=TRUE)
         {
           if (gex.runpca)
           {
-            x = RunPCA(x,npcs=min(c(50, gex.dims)),verbose = FALSE, reduction.name="pca", features=features_gex, assay=gex.assay)
+            x = Seurat::RunPCA(x,npcs=min(c(50, gex.dims)),verbose = FALSE, reduction.name="pca", features=features_gex, assay=gex.assay)
           }
 
           return(x)
@@ -667,24 +667,24 @@ run.parallel=TRUE)
       if (gex.method.normalization == "SCT")
       {
         print("PrepSCTIntegration")
-        objSamples <- PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
+        objSamples <- Seurat::PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
         print("Calculating PCAs on SCT")
-        objSamples <- lapply(X = objSamples, FUN = RunPCA, features = features_gex)
+        objSamples <- lapply(X = objSamples, FUN = Seurat::RunPCA, features = features_gex)
       }
 
       print("FindIntegrationAnchors")
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
-      objlist.anchors <- FindIntegrationAnchors(object.list = objSamples,  reduction = gex.method.integration, dims = 1:gex.dims, anchor.features = features_gex, normalization.method=gex.method.normalization, k.anchor=gex.k.anchor, k.filter = gex.k.filter)
-      obj.list.integrated <- IntegrateData(new.assay.name = "integrated_gex", anchorset = objlist.anchors, dims = 1:gex.dims, verbose=T, normalization.method = gex.method.normalization, k.weight=gex.k.weight)
+      objlist.anchors <- Seurat::FindIntegrationAnchors(object.list = objSamples,  reduction = gex.method.integration, dims = 1:gex.dims, anchor.features = features_gex, normalization.method=gex.method.normalization, k.anchor=gex.k.anchor, k.filter = gex.k.filter)
+      obj.list.integrated <- Seurat::IntegrateData(new.assay.name = "integrated_gex", anchorset = objlist.anchors, dims = 1:gex.dims, verbose=T, normalization.method = gex.method.normalization, k.weight=gex.k.weight)
       
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
 
@@ -694,29 +694,29 @@ run.parallel=TRUE)
     } else {
 
       objSamples = lapply(objSamples, function(x) {
-          DefaultAssay(x) <- gex.assay
+          Seurat::DefaultAssay(x) <- gex.assay
 
-          x <- RunPCA(x, npcs=max(c(50, gex.dims)), verbose = FALSE, reduction.name="pca",  assay=gex.assay)
-          suppressWarnings(x <- SCTransform(x,vars.to.regress = c('percent.mt', 'percent.rp'), verbose = T))
+          x <- Seurat::RunPCA(x, npcs=max(c(50, gex.dims)), verbose = FALSE, reduction.name="pca",  assay=gex.assay)
+          suppressWarnings(x <- sctransform::SCTransform(x,vars.to.regress = c('percent.mt', 'percent.rp'), verbose = T))
 
           return(x)
       })
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
 
-      features_gex <- SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration)#, assay=rep("RNA", length(objSamples)))
-      objSamples <- PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
+      features_gex <- Seurat::SelectIntegrationFeatures(object.list = objSamples, nfeatures = features.integration)#, assay=rep("RNA", length(objSamples)))
+      objSamples <- Seurat::PrepSCTIntegration(object.list = objSamples, anchor.features = features_gex)
 
-      objlist.anchors <- FindIntegrationAnchors(object.list = objSamples, normalization.method = "SCT", anchor.features = features_gex, k.anchor=gex.k.anchor,k.filter = add.k.filter)
-      obj.list.integrated <- IntegrateData(anchorset = objlist.anchors, normalization.method = "SCT", new.assay.name = "integrated_gex",verbose=T, k.weight=gex.k.weight)
+      objlist.anchors <- Seurat::FindIntegrationAnchors(object.list = objSamples, normalization.method = "SCT", anchor.features = features_gex, k.anchor=gex.k.anchor,k.filter = add.k.filter)
+      obj.list.integrated <- Seurat::IntegrateData(anchorset = objlist.anchors, normalization.method = "SCT", new.assay.name = "integrated_gex",verbose=T, k.weight=gex.k.weight)
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
     }
@@ -729,19 +729,19 @@ run.parallel=TRUE)
     {
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
-      obj.list.integrated = ScaleData(obj.list.integrated, assay="integrated_gex")
+      obj.list.integrated = Seurat::ScaleData(obj.list.integrated, assay="integrated_gex")
     
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
     }
-    obj.list.integrated <- RunPCA(obj.list.integrated, npcs = gex.dims, reduction.name="igpca", assay="integrated_gex")
-    obj.list.integrated <- RunUMAP(obj.list.integrated, reduction = "igpca", dims = 1:gex.dims, reduction.name="ig.umap", reduction.key = "UMAPig_",)
-    p=DimPlot(obj.list.integrated, group.by="orig_project", reduction="ig.umap", shuffle = TRUE, seed = 1)
+    obj.list.integrated <- Seurat::RunPCA(obj.list.integrated, npcs = gex.dims, reduction.name="igpca", assay="integrated_gex")
+    obj.list.integrated <- Seurat::RunUMAP(obj.list.integrated, reduction = "igpca", dims = 1:gex.dims, reduction.name="ig.umap", reduction.key = "UMAPig_",)
+    p=Seurat::DimPlot(obj.list.integrated, group.by="orig_project", reduction="ig.umap", shuffle = TRUE, seed = 1)
     save_plot(p, paste(intname, "ig_dimplot", sep="/"), 8, 6)
 
     obj.list.gex_add = NULL
@@ -755,21 +755,21 @@ run.parallel=TRUE)
 
       if (!run.parallel)
       {
-        t = plan()
-        plan("sequential")
+        t = future::plan()
+        future::plan("sequential")
       }
 
-      obj.list.integrated = ScaleData(obj.list.integrated, assay="integrated_add")
+      obj.list.integrated = Seurat::ScaleData(obj.list.integrated, assay="integrated_add")
 
       if (!run.parallel)
       {
-        plan(t)
+        future::plan(t)
       }
 
-      obj.list.integrated <- RunPCA(obj.list.integrated, features = rownames(add.list.integrated[[add.assay]]), verbose = FALSE, approx=FALSE, npcs=add.dims, reduction.name="iapca", assay="integrated_add")
-      obj.list.integrated <- RunUMAP(obj.list.integrated, reduction = "iapca", dims = 1:add.dims, reduction.name="ia.umap", reduction.key = "UMAPia_",)
+      obj.list.integrated <- Seurat::RunPCA(obj.list.integrated, features = rownames(add.list.integrated[[add.assay]]), verbose = FALSE, approx=FALSE, npcs=add.dims, reduction.name="iapca", assay="integrated_add")
+      obj.list.integrated <- Seurat::RunUMAP(obj.list.integrated, reduction = "iapca", dims = 1:add.dims, reduction.name="ia.umap", reduction.key = "UMAPia_",)
 
-      p=DimPlot(obj.list.integrated, group.by="orig_project", reduction="ia.umap", shuffle = TRUE, seed = 1)
+      p=Seurat::DimPlot(obj.list.integrated, group.by="orig_project", reduction="ia.umap", shuffle = TRUE, seed = 1)
       save_plot(p, paste(intname, "ia_dimplot", sep="/"), 8, 6)
 
 
@@ -777,32 +777,30 @@ run.parallel=TRUE)
       # multi modal neighbors
       #
 
-      obj.list.gex_add <- FindMultiModalNeighbors(
+      obj.list.gex_add <- Seurat::FindMultiModalNeighbors(
         obj.list.integrated, reduction.list = list("igpca", "iapca"), 
         dims.list = list(1:gex.dims, 1:add.dims), prune.SNN=1/20
       )
       #
       # multi modal viz
       #
-      obj.list.gex_add <- RunUMAP(obj.list.gex_add, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
-      obj.list.gex_add <- FindClusters(obj.list.gex_add, graph.name = "wsnn", algorithm = 3, resolution = 1, verbose = FALSE)
+      obj.list.gex_add <- Seurat::RunUMAP(obj.list.gex_add, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+      obj.list.gex_add <- Seurat::FindClusters(obj.list.gex_add, graph.name = "wsnn", algorithm = 3, resolution = 1, verbose = FALSE)
 
-      p <- DimPlot(obj.list.gex_add, reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_dimplot", sep="/"), 8, 6)
 
-      p <- DimPlot(obj.list.gex_add, group.by="orig_project", reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, group.by="orig_project", reduction = 'wnn.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_project_dimplot", sep="/"), 8, 6)
 
-
-      p <- DimPlot(obj.list.gex_add, reduction = 'ig.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'ig.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_ig_dimplot", sep="/"), 8, 6)
 
-
-      p <- DimPlot(obj.list.gex_add, reduction = 'ia.umap', label = TRUE, repel = FALSE, label.size = 2.5)
+      p <- Seurat::DimPlot(obj.list.gex_add, reduction = 'ia.umap', label = TRUE, repel = FALSE, label.size = 2.5)
       save_plot(p, paste(intname, "wnn_cluster_ia_dimplot", sep="/"), 8, 6)
 
 
-      obj.list.integrated$wnn_clusters = Idents(obj.list.gex_add)
+      obj.list.integrated$wnn_clusters = Seurat::Idents(obj.list.gex_add)
     }
 
     return(list("integrated"=obj.list.integrated, "multimodal"=obj.list.gex_add))
