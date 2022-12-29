@@ -826,11 +826,12 @@ run.parallel=TRUE)
 #' @param dim.reduction name of the reduction in which the PCA will be stored, and which is used for UMAP and Neighbors
 #' @param with.hto whether also HTO plots should be prepared
 #' @param run.parallel whether the ScaleData function should run in parallel or sequential
+#' @param run.umap_neighbors whether to run RunUMAP, FindNeighbors and FindClusters
 #'
 #' @return preprocessed Seurat object
 #' @export
 #'
-preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50, resolution=0.5, plot.reduction="umap", dim.reduction="umap", with.hto=TRUE, run.parallel=TRUE)
+preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50, resolution=0.5, plot.reduction="umap", dim.reduction="umap", with.hto=TRUE, run.parallel=TRUE, run.umap_neighbors=TRUE, clusters.graph.name=NULL)
 {
   
   if (!dir.exists(inname))
@@ -872,17 +873,22 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
 
   print(paste("dim.reduction", dim.reduction))
 
-  p=Seurat::ElbowPlot(obj.in, ndims=30, reduction = dim.reduction)
-  save_plot(p, paste(inname, "elbowplot", sep="/"), 12, 6)
-
+  if ("pca" %in% dim.reduction)
+  {
+    p=Seurat::ElbowPlot(obj.in, ndims=30, reduction = dim.reduction)
+    save_plot(p, paste(inname, "elbowplot", sep="/"), 12, 6)
+  }
   
-  print("RunUMAP Data")
-  obj.in <- Seurat::RunUMAP(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
-  print("FindNeighbors Data")
-  obj.in <- Seurat::FindNeighbors(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
-  print("FindClusters Data")
-  obj.in <- Seurat::FindClusters(obj.in, resolution = resolution)
 
+  if (run.umap_neighbors == TRUE)
+  {
+    print("RunUMAP Data")
+    obj.in <- Seurat::RunUMAP(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
+    print("FindNeighbors Data")
+    obj.in <- Seurat::FindNeighbors(obj.in, reduction = dim.reduction, dims = 1:num.pcs)
+  }
+  print("FindClusters Data")
+  obj.in <- Seurat::FindClusters(obj.in, resolution = resolution, graph.name=clusters.graph.name)
 
   obj.in$idents = Seurat::Idents(obj.in)
 
