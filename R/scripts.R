@@ -208,6 +208,62 @@ scatterAndFilter = function(objlist, nfeature_rna.lower=100, nfeature_rna.upper=
 
 }
 
+#
+##
+### CITE-seq Antibodies
+##
+#
+
+
+#' Takes a list of antibody capture feature-cell-matrices, the list of Seurat objects and a list of relevant hashtag oligo IDs for each sample
+#'
+#'
+#' @param imats list of antibody capture feature-cell-matrices
+#' @param objlist list of Seurat objects
+#' @param HTOs hashtag oligo IDs to ignore for processing CITE
+#' @param assayName name of the newly created CITE-seq assay
+#'
+#' @return list of Seurat objects with HTO assay
+#'
+#'
+#' @export
+processCITE = function(objlist, imats, assayName="ADT", HTOs=NULL)
+{
+
+    retlist = list()
+    for (name in names(objlist))
+    {
+        obj.in = objlist[[name]]
+        ab.raw = imats$ab[[name]]
+
+        colnames(ab.raw) = paste(name, colnames(ab.raw), sep="_")
+
+        #remove HTOs from ab.raw
+
+        if (!is.null(HTOs))
+        {
+            ab.raw = ab.raw[ ~(rownames(ab.raw) %in% HTOs), ]
+        }
+
+        #print(head(ab.raw))
+
+        ab.raw = ab.raw[, colnames(obj.in)]
+        
+        adt_assay <- Seurat::CreateAssayObject(counts = ab.raw)
+        obj.in[[assayName]] = adt_assay
+
+
+        DefaultAssay(obj.in) <- assayName
+        obj.in <- Seurat::NormalizeData(obj.in, normalization.method = "CLR", margin = 2)
+
+
+        Seurat::DefaultAssay(obj.in) <- "RNA"
+        retlist[[name]] = obj.in
+    }
+
+    return(retlist)
+}
+
 
 
 #
