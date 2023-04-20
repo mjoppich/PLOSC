@@ -253,7 +253,7 @@ processCITE = function(objlist, imats, assayName="ADT", HTOs=NULL)
         obj.in[[assayName]] = adt_assay
 
 
-        DefaultAssay(obj.in) <- assayName
+        Seurat::DefaultAssay(obj.in) <- assayName
         obj.in <- Seurat::NormalizeData(obj.in, normalization.method = "CLR", margin = 2)
 
 
