@@ -1,0 +1,12 @@
+*.data
+*.png
+*.pdf
+*.svg
+
+*.Rds
+*.RData
+*.Rproj
+.Rhistory
+.Rproj.user
+
+testdata/*

@@ -29,12 +29,56 @@ patternList.mouse[["RPS"]] = "^Rps"
 #'
 #'
 #' @param files list of mtx paths
+#' @param sample_element in the split path, which element is the sample name
+#' @param sample_processor function modifying sample name
 #'
 #' @return list of gex and ab (gene expression, antibody capture) lists of per cell counts
 #'
 #'
 #' @export
-readMtxFiles = function(files)
+readH5Files = function(files, sample_element=3, sample_processor=function(x){return(x)})
+{
+  
+  allfiles.raw = list()
+  allABs.raw = list()
+  
+  for (file in files)
+  {
+    samplename = sample_processor(stringr::str_split(file, "/")[[1]][sample_element])
+    foldername = dirname(file)
+    
+    print(paste(samplename, file))
+    
+    h5file = Seurat::Read10X_h5(file, unique.features = TRUE)
+    
+    if (is.null(names(h5file)))
+    {
+      print(paste("WITHOUT AB", samplename))
+      allfiles.raw[[samplename]] = h5file
+    } else {
+      print(paste("WITH AB", samplename))
+      allfiles.raw[[samplename]] = h5file$`Gene Expression`
+      allABs.raw[[samplename]] = h5file$`Antibody Capture`
+    }
+    
+    print(paste(samplename,  nrow(allfiles.raw[[samplename]]), "x", ncol(allfiles.raw[[samplename]]), "genes x cells"))
+  }
+  
+  return(list(gex=allfiles.raw, ab=allABs.raw))
+}
+
+
+#' Reads in a list of mtx files and returns two named lists of gene expression counts and Antibody Capture Counts
+#'
+#'
+#' @param files list of mtx paths
+#' @param sample_element in the split path, which element is the sample name
+#'
+#' @return list of gex and ab (gene expression, antibody capture) lists of per cell counts
+#'
+#'
+#' @export
+readMtxFiles = function(files, sample_element=3)
 {
 
   allfiles.raw = list()
@@ -42,7 +86,7 @@ readMtxFiles = function(files)
 
   for (file in files)
   {
-    samplename = stringr::str_split(dirname(file), "/")[[1]][3]
+    samplename = stringr::str_split(dirname(file), "/")[[1]][sample_element]
     foldername = dirname(file)
     
     print(paste(samplename, foldername))
@@ -59,7 +103,7 @@ readMtxFiles = function(files)
       allABs.raw[[samplename]] = h5file$`Antibody Capture`
     }
 
-    print(paste(samplename, ncol(allfiles.raw[[samplename]]), "genes x cells"))
+    print(paste(samplename,  nrow(allfiles.raw[[samplename]]), "x", ncol(allfiles.raw[[samplename]]), "genes x cells"))
   }
 
   return(list(gex=allfiles.raw, ab=allABs.raw))
@@ -1674,5 +1718,74 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
     dev.off()
       
   }
+  
+}
+
+
+
+#' Creates a meta data entry with name group.name for the given annotation
+#'
+#' @param obj.in Seurat object to annotate
+#' @param group.name new group name
+#' @param annotation annotation
+#' @param order whether the annotation (which will be stored as factor)
+#' @param use.base 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+annotateByCellnamePattern = function(obj.in, group.name, annotation, order=NULL, use.base=NULL)
+{
+  
+  cellList = colnames(obj.in)
+  featVec <- vector(mode="character", length=length(cellList))
+  
+  if (is.null(use.base) || (use.base=="cells"))
+  {
+    cellList = colnames(obj.in)
+  } else {
+    cellList = obj.in@meta.data[, use.base]
+  }
+  
+  names(featVec) = cellList
+  
+  for (elem in annotation)
+  {
+    annotName = elem$name
+    annotSelector = elem$selector
+    
+    print(paste(annotName, is.vector(annotSelector) & length(annotSelector) == 1))
+    
+    if (is.vector(annotSelector) & length(annotSelector) == 1) { #string
+      featVec[grep(x = cellList, pattern = annotSelector)] = annotName
+    } else if (is.vector(annotSelector) & length(annotSelector) > 1) { #vector
+      featVec[ annotSelector ] = annotName
+    } else {
+      print(paste("Ignored selector", annotName, annotSelector))
+    }
+    
+  }
+  obj.in = Seurat::AddMetaData(obj.in, featVec, col.name=group.name)
+  
+  if (!is.null(order))
+  {
+    
+    obj.in@meta.data[,c(group.name)] = factor(obj.in@meta.data[,c(group.name)], levels=order)
+    
+  }
+  
+  print(unique(obj.in@meta.data[,c(group.name)]))
+  
+  return(obj.in)
+}
+
+cellIDForClusters = function(obj.in, targetVar, clusters)
+{
+  
+  targetVarDF = as.data.frame(obj.in[[targetVar]])
+  cellNames = rownames(targetVarDF)[targetVarDF[[targetVar]] %in% clusters]
+  
+  return(cellNames)
   
 }

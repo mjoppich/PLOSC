@@ -1,0 +1,317 @@
+
+
+```{r}
+
+library("Seurat")
+
+source("../R/plots.R")
+source("../R/scripts.R")
+
+```
+
+
+```{r}
+
+files <- Sys.glob("T:/scdata/covid_sc_cellranger/h5files/*.h5")
+inputMatrices = readH5Files(files, sample_element=5, sample_processor=function(x){return(substr(x, 1, 10))})
+
+```
+
+```{r}
+
+objlist.raw = toObjList(inputMatrices, patternList.human, 3000)
+
+
+```
+
+
+```{r}
+
+objlist = scatterAndFilter(objlist.raw, nfeature_rna.lower=100, nfeature_rna.upper=6000, ncount_rna.lower=500, percent_mt.upper=7)
+
+```
+
+```{r}
+
+print("cells per experiment")
+print(mapply(sum, lapply(objlist, function(x) {dim(x)[2]})))
+print("total cells")
+print(sum(mapply(sum, lapply(objlist, function(x) {dim(x)[2]}))))
+
+
+```
+
+```{r}
+
+objlist.raw = NULL
+inputMatrices = NULL
+
+```
+
+```{r}
+
+finalList = prepareIntegration(objlist, cc.use.genes = cc.genes, nfeatures.variable = 3000, nfeatures.scale=3000, run.parallel=FALSE)
+
+```
+
+```{r}
+
+integratedList_sample = performIntegration(finalList$data, "libintegration", features.integration = finalList$features, gex.method.normalization="LogNormalize", gex.method.integration="rpca", add.do=FALSE, run.parallel=FALSE)
+
+
+```
+
+```{r}
+
+ElbowPlot(integratedList_sample$integrated, ndims=30, reduction = "igpca")
+
+```
+
+```{r}
+
+obj.integrated = preprocessIntegrated(integratedList_sample$integrated, "integrated_gex", "libintegration",  resolution=0.5, num.pcs=10, dim.reduction="igpca", with.hto=FALSE)
+
+
+```
+```{r}
+obj.integrated@reductions$ig.umap = NULL
+```
+
+
+```{r}
+DimPlot(obj.integrated, label=T)
+```
+
+```{r}
+
+df = read.table("samples2condition.df", header = TRUE)
+df[order(df$SampleName),]
+
+```
+
+```{r}
+
+annotateList.sample_condition = list(
+  list(name="SYMPTOMATIC", selector="^20094_0001"),
+  list(name="SYMPTOMATIC", selector="^20094_0002"),
+  list(name="SYMPTOMATIC", selector="^20094_0003"),
+  list(name="ASYMPTOMATIC", selector="^20094_0004"),
+  list(name="ASYMPTOMATIC", selector="^20094_0005"),
+  list(name="ASYMPTOMATIC", selector="^20094_0006"),
+  list(name="SYMPTOMATIC", selector="^20094_0007"),
+  list(name="SYMPTOMATIC", selector="^20094_0008"),
+  list(name="SYMPTOMATIC", selector="^20094_0009"),
+  list(name="CONTROL", selector="^20094_0012")
+
+)
+
+obj.integrated = annotateByCellnamePattern( obj.integrated, "condition", annotateList.sample_condition, order=c("CONTROL", "ASYMPTOMATIC", "SYMPTOMATIC"))
+
+annotateList.sample_condition = list(
+  list(name="TP 1", selector="^20094_0001"),
+  list(name="TP 2", selector="^20094_0002"),
+  list(name="TP 3", selector="^20094_0003"),
+  list(name="TP 1", selector="^20094_0004"),
+  list(name="TP 2", selector="^20094_0005"),
+  list(name="TP 3", selector="^20094_0006"),
+  list(name="TP 1", selector="^20094_0007"),
+  list(name="TP 2", selector="^20094_0008"),
+  list(name="TP 3", selector="^20094_0009"),
+  list(name="Ctrl", selector="^20094_0012")
+
+)
+
+obj.integrated = annotateByCellnamePattern( obj.integrated, "tp", annotateList.sample_condition, order=c("Ctrl", "TP 1", "TP 2", "TP 3"))
+
+
+```
+```{r, fig.width=24, fig.height=20}
+p=makeUMAPPlot(obj.integrated, dim1 = "condition", dim2="tp", group.by="idents", downsample = FALSE)
+save_plot(p, "split_dimplot_downsample_no", 24, 20)
+
+```
+
+
+```{r, fig.width=24, fig.height=20}
+p=makeUMAPPlot(obj.integrated, dim1 = "condition", dim2="tp", group.by="idents", downsample = TRUE)
+save_plot(p, "split_dimplot_downsample", 24, 20)
+
+
+```
+
+
+```{r}
+
+
+dir.create("libintegration/de")
+
+exprdfTT = makeDEResults(obj.integrated, assay="RNA", test="t")
+write.table(exprdfTT, "libintegration/de/expr_test_t.tsv", sep="\t", row.names=F, quote = F)
+writexl::write_xlsx(exprdfTT, "libintegration/de/expr_test_t.xlsx")
+
+
+```
+
+```{r}
+FeaturePlot(obj.integrated, "MT2A")
+```
+
+
+```{r}
+DefaultAssay(obj.integrated)= "RNA"
+
+isgGenes = c("MT2A", "ISG15", "LY6E", "IFIT1", "IFIT2", "IFIT3", "IFITM1", "IFITM3", "IFI44L", "IFI6", "MX1", "IFI27",  "IFI44L", "RSAD2", "SIGLEC1", "IFIT1", "ISG15")
+
+obj.integrated = AddModuleScore(obj.integrated, features =  isgGenes, name = "isg_score_small")
+
+```
+
+```{r}
+FeaturePlot(obj.integrated, "isg_score_small1")
+
+```
+
+
+
+```{r}
+obj.integrated$cond_tp = paste(obj.integrated$condition, obj.integrated$tp, sep=" ")
+```
+
+
+
+```{r, fig.width=30, fig.height=15}
+p=splitFeaturePlot(obj.integrated, "isg_score_small1", split.by="cond_tp", title="FeaturePlot", ncol=4)
+save_plot(p, "split_featureplot_isg", 30, 15)
+
+```
+
+
+
+```{r fig.width=12, fig.height=8}
+
+
+p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE)
+save_plot(p, "comparative_violin_isg", 12, 8)
+
+
+```
+
+```{r}
+obj.integrated = ScaleData(obj.integrated)
+obj.integrated
+```
+
+
+```{r}
+
+plotGOIs = list("1"=list("clusters"=c(0), "genes"=isgGenes))
+
+p=enhancedHeatMap(obj.integrated, plotGOIs, group.by="idents", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
+save_plot(p, "heatmap_isg_genes", 12, 8, save.data = FALSE)
+
+
+```
+
+
+```{r}
+
+plotGOIs = list("1"=list("clusters"=c(0), "genes"=isgGenes))
+
+p=enhancedHeatMap(obj.integrated, plotGOIs, group.by="idents", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="ALL")
+save_plot(p, "heatmap_isg_genes_ALL", 12, 8, save.data = FALSE)
+
+
+```
+
+```{r fig.width=30, fig.height=10}
+source("../R/plots.R")
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
+save_plot(p, "heatmap_split_isg_genes", 30, 10, save.data = FALSE)
+
+
+```
+```{r fig.width=30, fig.height=10}
+source("../R/plots.R")
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="ALL")
+save_plot(p, "heatmap_split_isg_genes_ALL", 30, 10, save.data = FALSE)
+
+
+```
+```{r fig.width=30, fig.height=10}
+source("../R/plots.R")
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GROUP")
+save_plot(p, "heatmap_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
+
+
+```
+```{r}
+cells.tp1
+```
+
+```{r, fig.height=12, fig.width=16}
+
+source("../R/plots.R")
+
+cells.control = cellIDForClusters(obj.integrated, "condition", c("CONTROL"))
+cells.symptomatic = cellIDForClusters(obj.integrated, "condition", c("SYMPTOMATIC"))
+cells.asymptomatic = cellIDForClusters(obj.integrated, "condition", c("ASYMPTOMATIC"))
+
+
+plotElems = list()
+plotElems[["Control"]] = list(cells=intersect(cells.control, cells.control), label="Control")
+plotElems[["Symptomatic"]] = list(cells=intersect(cells.symptomatic,cells.symptomatic), label="Symptomatic")
+plotElems[["Asymptomatic"]] = list(cells=intersect(cells.asymptomatic,cells.asymptomatic), label="Asymptomatic")
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="ALL", rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_ALL", 30, 10, save.data = FALSE)
+
+
+```
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="GLOBAL", rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_GLOBAL", 30, 10, save.data = FALSE)
+
+
+```
+
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="GROUP",rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
+
+
+```
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="FEATURE", rotate.x=TRUE)
+save_plot(p, "edotplot_split_isg_genes_FEATURE", 30, 10, save.data = FALSE)
+
+
+```
+
+
+```{r}
+source("../R/plots.R")
+source("../R/scripts.R")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -35,4 +35,5 @@ Imports: Tempora,
             ComplexHeatmap,
             circlize,
             pbapply,
-            future
+            future,
+            magrittr

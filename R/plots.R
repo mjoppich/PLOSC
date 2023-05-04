@@ -293,6 +293,7 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @param obj.sc Seurat object for plotting
 #' @param feature genes to plot
 #' @param group.by name of the meta.data column used for grouping cells
+#' @param adj.pval.threshold adjusted p-value threshold to show result
 #' @param split.by name of the meta.data column used for dodging violins
 #' @param pt.size size of the single value dots
 #' @param min.threshold minimum number of cells in group
@@ -301,35 +302,34 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @param min.threshold minimum number of cells in group
 #' @param split.values values in split.by to consider
 #' @param yStepIncrease y distance between statistics
+#' @param override ignore min.threshold
+#' @param boxplot_grey fill color of boxplot
 #'
 #' @return ggplot2 object 
 #' 
 #' @export
-comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.25)
+comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=0.05, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.5, override=FALSE, boxplot_grey="grey", verbose=FALSE)
 {
-  # dsrCols = list("Thrombus"="grey", "Blood="red")
   
-
-
   remainingCells = NULL
-
+  
   if (is.null(split.by))
   {
-
-      cellGroupDF = obj.sc[[ group.by ]]
-
-      countDF = table(cellGroupDF)
-      countDF = countDF[countDF >= min.threshold]
-
-      remainingClusters = rownames(countDF)
-      remainingCells = rownames(cellGroupDF)[ cellGroupDF[[group.by]] %in% remainingClusters ]
-
+    
+    cellGroupDF = obj.sc[[ group.by ]]
+    
+    countDF = table(cellGroupDF)
+    countDF = countDF[countDF >= min.threshold]
+    
+    remainingClusters = rownames(countDF)
+    remainingCells = rownames(cellGroupDF)[ cellGroupDF[[group.by]] %in% remainingClusters ]
+    
   } else {
-
+    
     cellGroupDF = obj.sc[[ c(group.by, split.by) ]]
-
+    
     countDF = as.data.frame(table(cellGroupDF))
-
+    
     groupValues = unique(cellGroupDF[, group.by])
     splitValues = unique(cellGroupDF[, split.by])
     remainingCells = c() 
@@ -339,14 +339,23 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
       keepGroup = TRUE
       for (sv in splitValues)
       {
-        counts = (countDF %>% dplyr::filter(.data[[group.by]] == gv) %>% dplyr::filter(.data[[split.by]] == sv))$Freq
-
-        if (counts < min.threshold)
+        
+        countDF2 = countDF[countDF[[group.by]] == gv,]
+        counts = countDF2[countDF2[[split.by]] == sv,]
+        
+        countsValue = 0
+        if (dim(counts)[1] > 0)
+        {
+          countsValue = counts$Freq
+        }
+        
+        if ((override==FALSE) && (countsValue < min.threshold))
         {
           keepGroup = FALSE
+          print(paste(gv, sv, countsValue))
         }
       }
-
+      
       if (keepGroup)
       {
         sCells = cellIDForClusters(obj.sc, split.by, splitValues)
@@ -356,21 +365,21 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
         print(paste("Removing group", gv))
       }
     }
-
+    
   }
-
-
+  
+  
   print(paste("Existing Cells", length(colnames(obj.sc))))
   print(paste("New Cells", length(remainingCells)))
-
+  
   obj.sc = subset(obj.sc, cells=remainingCells)
-
+  
   if ((is.null(split.values) && !is.null(split.by)))
   {
     split.values = as.character(unique(obj.sc@meta.data[[split.by]]))
     print(split.values)
   }
-
+  
   if (feature %in% colnames(obj.sc@meta.data))
   {
     dataDF = obj.sc@meta.data[,c(feature, group.by, split.by)]
@@ -384,25 +393,25 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
     dataDF = dataDF[dataDF[[split.by]] %in% split.values, ]
   }
   
-
+  
   if (!is.null(levels(dataDF[[group.by]])))
   {
     dataDF[[group.by]]= factor(dataDF[[group.by]], levels=intersect( levels(dataDF[[group.by]]), as.character(dataDF[[group.by]]) ))
   } else {
     dataDF[[group.by]] = as.factor(dataDF[[group.by]])
   }
-
+  
   if ((!is.null(split.by)) && (is.null(levels(dataDF[[split.by]]))))
   {
     dataDF[[split.by]] = as.factor(dataDF[[split.by]])
   }
-
-
+  
+  
   keepAC = c()
   for (ac in unique(dataDF[[group.by]]))
   {
-    subdf = dataDF %>% filter(.data[[group.by]] == ac)
-
+    subdf = dataDF[dataDF[[group.by]] == ac,]
+    
     if (!is.null(split.by))
     {
       numDiffGroups = length(unique(subdf[[split.by]]))
@@ -410,57 +419,55 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
       numDiffGroups = 2
     }
     
-
+    
     print(paste(ac, numDiffGroups))
-
+    
     if (numDiffGroups > 1)
     {
       keepAC = c(keepAC, ac)
     }
   }
-
-  stat.test = dataDF %>% filter((!!as.symbol(group.by)) %in% keepAC) %>% group_by_at(group.by, .add=T)
+  
+  stat.test = dplyr::group_by_at(dplyr::filter(dataDF, (!!as.symbol(group.by)) %in% keepAC), group.by, .add=T)
 
   if (!is.null(split.by))
   {
-   stat.test = stat.test %>%
-  pairwise_t_test(
-      as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
-      p.adjust.method = "BH"
+    stat.test = rstatix::pairwise_t_test(stat.test,
+        as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
+        p.adjust.method = "BH"
       )
   } else {
-
-        print(head(as.data.frame(stat.test)))
-
-
-    stat.test = as.data.frame(stat.test) %>%
-  pairwise_t_test(
-      as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
-      p.adjust.method = "BH"
+    
+    print(head(as.data.frame(stat.test)))
+    
+    
+    stat.test = rstatix::pairwise_t_test(stat.test,
+        as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
+        p.adjust.method = "BH"
       )
-
+    
     print(stat.test)
   }
   
-
-
+  
+  
   if (onelineLabel)
   {
     stat.test$label = paste("n1=",stat.test$n1," ", "n2=",stat.test$n2,", p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
   } else {
     stat.test$label = paste("n1=",stat.test$n1,",\n", "n2=",stat.test$n2,"\n","p < ", formatC(stat.test$p.adj, format = "e", digits = 2), sep="")
   }
-
+  
   maxValue = max(dataDF[,c(feature)])
   minValue = min(dataDF[,c(feature)])
-
-
+  
+  
   if (!is.null(split.by))
   {
-
+    
     groupValues = unique(dataDF[, group.by])
     splitValues = unique(dataDF[, split.by])
-
+    
     remainingCells = c() 
     for (gv in groupValues)
     {
@@ -468,11 +475,14 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
       keepGroup = TRUE
       for (sv in splitValues)
       {
-        subsetExprDF = (dataDF %>% dplyr::filter(.data[[group.by]] == gv) %>% dplyr::filter(.data[[split.by]] == sv))
 
+        sDF = dataDF[dataDF[[group.by]]==gv,]
+        subsetExprDF = sDF[sDF[[split.by]]==sv,]
+        
         featureSD = sd(subsetExprDF[ , c(feature)])
-
-        if (featureSD == 0)
+        print(paste(sv, featureSD))
+        
+        if (!is.na(featureSD) && (featureSD == 0))
         {
           dataDF[rownames(subsetExprDF)[1], c(feature)] = dataDF[rownames(subsetExprDF)[1], c(feature)] + 0.000001
         }
@@ -480,38 +490,58 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, split.by=NULL, spli
       }
     }
   }
-
+  
   print("Creating Plot")
-
+  
   if (is.null(split.by))
   {
     split.by=group.by
   }
-
-  bxp <- ggplot(dataDF, aes_string(x=group.by, y=feature)) +
-        geom_violin(aes_string(fill=split.by), position =position_dodge(width = 0.9), trim=TRUE)
-
+  
+  bxp <- ggplot2::ggplot(dataDF, ggplot2::aes_string(x=group.by, y=feature)) +
+    ggplot2::geom_violin(ggplot2::aes_string(fill=split.by), position = ggplot2::position_dodge(width = 0.9), trim=TRUE)
+  
   if (dot.size > 0)
   {
-    bxp = bxp + geom_jitter(aes_string(fill=split.by), position =position_jitterdodge(dodge.width=0.9), size=dot.size)
+    bxp = bxp + ggplot2::geom_jitter(ggplot2::aes_string(fill=split.by), position =ggplot2::position_jitterdodge(dodge.width=0.9), size=dot.size)
   }
-
+  
   bxp = bxp +
-        geom_boxplot(aes_string(fill=split.by),color="grey", alpha=0.4, position =position_dodge(width = 0.9)) +
-        theme(axis.text.x = element_text(angle = 90, vjust=0.5, hjust=1.0),
-              panel.border = element_blank(), panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              axis.line = element_line(colour = "black"),panel.background = element_blank())+labs(fill='Group')
-        
+    ggplot2::geom_boxplot(ggplot2::aes_string(fill=split.by),color=boxplot_grey, alpha=0.4, position = ggplot2::position_dodge(width = 0.9)) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust=0.5, hjust=1.0),
+          panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),
+          panel.grid.minor = ggplot2::element_blank(),
+          axis.line = ggplot2::element_line(colour = "black"),panel.background = ggplot2::element_blank())+ggplot2::labs(fill='Group')
+  
   if (!is.null(dsrCols))
   {
-    bxp = bxp + scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])
+    bxp = bxp + ggplot2::scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])
   }
+  
+  if (verbose)
+  {
+    print(stat.test)
+  }
+  
+  stat.test = stat.test[stat.test$p.adj < adj.pval.threshold,]
+  
+  stat.test <- rstatix::add_xy_position(stat.test, x = group.by, dodge = 0.8, step.increase=yStepIncrease)
+  
+  print(dim(stat.test))
+  
+  top_space = (dim(stat.test)[1]+1) * yStepIncrease
+  
+  ymin = 0
+  if (minValue < 0)
+  {
+    ymin = floor(minValue*1.1)
+  } else {
+    ymin = floor(minValue*0.9)
+  }
+  
+  ymax = ceiling(maxValue+top_space) + min(0.2, 0.2*maxValue)
 
-  stat.test = stat.test[stat.test$p.adj < 0.05,]
-
-  stat.test <- stat.test %>% rstatix::add_xy_position(x = group.by, dodge = 0.8, step.increase=yStepIncrease)#, y.trans=function(x){x*1.1})
-  bxp = bxp + stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ylim(c(floor(minValue*1.1), ceiling(maxValue*1.2)))
+  bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(ymin, ymax)
   return(bxp)
 }
 
@@ -718,7 +748,7 @@ if (!is.null(scale.by) && (scale.by=="ALL"))
 
   }
 
-  p = ComplexHeatmap::Heatmap(mat, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=title, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+  p = ComplexHeatmap::Heatmap(mat, name=valueTitle, rect_gp = grid::gpar(col = "white", lwd = 2), column_title=title, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
 
   return(p)
 
@@ -926,7 +956,7 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     col_fun = circlize::colorRamp2(scale.limits, c("blue", "white", "red"))
     print(col_fun)
 
-    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitle, rect_gp = gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitle, rect_gp = grid::gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
     
     if (showlegend)
     {
@@ -982,25 +1012,28 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 #'
 #'
 #' @export
-enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cellnames_manual", col.min = -3, col.max = 3, cols = c("grey", "blue"), title="", scale.by="GROUP", rotate.x=F, abundance.perelem=FALSE, assay="RNA")
+enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_manual", col.min = -3, col.max = 3, cols = c("blue", "yellow", "red"), title="", scale.by="GROUP", rotate.x=F, abundance.perelem=FALSE, assay="RNA")
 {
 
+  
   stopifnot(is.null(scale.by) ||scale.by %in% c("GROUP", "FEATURE", "ALL", "GLOBAL"))
 
+  featureGenes = unique(featureGenes)
+  
   use.slot="data"
-
+  
   if (!is.null(scale.by) && scale.by == "GLOBAL")
   {
     use.slot="scale.data"
   }
-
+  
   plotData = list()
   allFoundFeatures = c() 
   ctFractions = list()
   
   scFullTable = table(scobj[[group.by]])
   scFullDf = as.data.frame(scFullTable)
-
+  
   fillLimitsMax = 0
   elemCount = 0
   for (plotName in names(plotElems))
@@ -1010,7 +1043,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     plotDescr = plotDef$label
     
     scobj_subset = subset(scobj, cells=plotCells)
-
+    
     avgexpMat = Seurat::AverageExpression(scobj_subset, features=featureGenes, group.by=group.by, assay=assay, slot=use.slot)$RNA
     
     if (use.slot=="data")
@@ -1018,12 +1051,23 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
       avgexpMat = log1p(avgexpMat)
     }
     
-
-    avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
-
+    if (is.null(rownames(avgexpMat)))
+    {
+      rownames(avgexpMat) = featureGenes
+    }
+    
+    print(avgexpMat)
+    
+    #avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
+    avgExpr = reshape2::melt(avgexpMat)
+    colnames(avgExpr) = c("features.plot", "id", "avg.exp")
+    
+    avgExpr = avgExpr[order(avgExpr[["features.plot"]], avgExpr[["id"]]), ]
+    
     p=Seurat::DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
-
+    
     avgExpr = merge(avgExpr, p$data[, c("id", "features.plot", "pct.exp")], by=c("id", "features.plot"))
+    
     
     scTable = table(scobj_subset[[group.by]])
     scDf = as.data.frame(scTable)
@@ -1035,75 +1079,71 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     } else {
       scDf$perc = scDf$Freq / sum(scFullDf$Freq) # total abundance!
     }
-
+    
     fillLimitsMax = max(c(fillLimitsMax,max(scDf$perc)))
-
+    
     ctFractions[[plotName]] = scDf   
     plotData[[plotName]] = avgExpr
   }
-
+  
   idLevels = levels(scobj@meta.data[, c(group.by)])
   featureLevels = featureGenes
-
+  
   
   # initialize Values
   for (plotName in names(plotData))
   {
-    #plotData[[plotName]]$avg.exp.scaled2 = 0
     plotData[[plotName]]$id = as.character(plotData[[plotName]]$id)
     plotData[[plotName]]$features.plot = as.character(plotData[[plotName]]$features.plot)
   }
-
-  #print(plotData[["Young"]])
   
+
   allIDs = c()
   allFeatures = c()
   for (plotName in names(plotData))
   {
-      allIDs = c(allIDs, plotData[[plotName]]$id)
-      allFeatures = c(allFeatures, plotData[[plotName]]$features.plot)
+    allIDs = c(allIDs, plotData[[plotName]]$id)
+    allFeatures = c(allFeatures, plotData[[plotName]]$features.plot)
   }
   allIDs = unique(allIDs)
   allFeatures = unique(allFeatures)
-
+  
   if ((is.null(scale.by) || scale.by == "GLOBAL"))
   {
-
+    print("SCALING BY GLOBAL")
+    
     for (plotName in names(plotData))
     {
-
-      plotDF = plotData[[plotName]]
-
-      #plotDF$id = factor(plotDF$id, levels = mixedsort(as.character(unique(plotDF$id))))
-      #plotDF$idn= as.numeric(plotDF$id)
-      #plotDF$features.plot = factor(plotDF$features.plot, levels=unique(plotDF$features.plot))
       
-      #just copy old values
+      plotDF = plotData[[plotName]]
+      
       plotDF[, "avg.exp.scaled2"] = plotDF$avg.exp
-
+      
       plotData[[plotName]] = plotDF
     }
-
+    
   } else if (scale.by == "GROUP")
   {
-
+    print("SCALING BY GROUP")
+    
     for (plotName in names(plotData))
     {
-
+      
       plotDF = plotData[[plotName]]
-
+      
       #just copy old values
       plotDF[, "avg.exp.scaled2"] = scale(plotDF$avg.exp)
-
+      
       plotData[[plotName]] = plotDF
     }
-
-
+    
+    
   } else if (scale.by == "FEATURE")
   {
     print("SCALING BY FEATURE")
+    print(allFeatures)
     # calculate avg.exp.scaled2 for each feature
-    for (featureName in allFoundFeatures)
+    for (featureName in allFeatures)
     {
       print(featureName)
       allUnscaledValues = NULL
@@ -1111,7 +1151,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
       {
         pData = plotData[[plotName]]
         missingIDs = setdiff(allIDs, unique(pData$id))
-                
+        
         for (mid in missingIDs)
         {
           for (feature in allFeatures)
@@ -1138,43 +1178,46 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
         }
         
       }
-
+      
       allUnscaledValues$rnames = as.numeric(rownames(allUnscaledValues))
-      allUnscaledLong = allUnscaledValues %>% gather(Type, Value, names(plotData))
+      allUnscaledLong = tidyr::gather(allUnscaledValues, Type, Value, names(plotData))
       allUnscaledLong$Value = scale(allUnscaledLong$Value)
-      allScaledValues = allUnscaledLong %>% spread(Type, Value) %>% arrange( order(rnames))
+      allScaledValues = dplyr::arrange(tidyr::spread(allUnscaledLong, Type, Value), order(rnames))
       
       for (plotName in names(plotData))
       {
-
+        
         pData = plotData[[plotName]]
-               
+        
         origData = pData[pData$features.plot==featureName, ]
         pData[pData$features.plot==featureName, "avg.exp.scaled2"] = pData[pData$features.plot==featureName, "avg.exp"]
         #pData$idn=as.numeric(pData$id)
-
+        
         plotData[[plotName]] = pData
       }
-
-
+      
+      
       
     }
-
+    
   } else if (scale.by == "ALL") {
-
+    
+    print("SCALING BY ALL")
+    
+    
     combinedDataDF = data.frame()
-
+    
     for (plotName in names(plotData))
     {
       pData = plotData[[plotName]]
       pData["plotpart"] = plotName
-
+      
       combinedDataDF = rbind(combinedDataDF, pData)
     }
-
+    
     combinedDataDF[, c("avg.exp.scaled2")] = scale(combinedDataDF$avg.exp)
-
-
+    
+    
     # reorder
     originalGroups = scobj@meta.data[,group.by]
     if (is.factor(originalGroups))
@@ -1184,42 +1227,42 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     } else {
       combinedDataDF$id = factor(combinedDataDF$id, levels = gtools::mixedsort(as.character(unique(combinedDataDF$id))))
     }
-
-
+    
+    
     for (plotName in names(plotData))
     {
       subDF = combinedDataDF[combinedDataDF$plotpart == plotName, c("features.plot", "id", "avg.exp.scaled2", "plotpart")]
-
+      
       pData = plotData[[plotName]]
-
+      
       pData = merge(pData, subDF, by.x=c("features.plot", "id"), by.y=c("features.plot", "id"))
-
+      
       #pData$avg.exp.scaled2 = subDF[pData$features.plot,]$avg.exp.scaled2
       #pData$id = plotData$id
       #pData$idn= as.numeric(pData$id)
       #pData$features.plot = factor(pData$features.plot, levels=unique(pData$features.plot))
       
       plotData[[plotName]] = pData
-
-    }
       
+    }
+    
   } else {
     stopifnot(FALSE)
   }
-
-
+  
+  
   for (plotName in names(plotData))
   {
     pData = plotData[[plotName]]
-
+    
     pData$id = factor(pData$id, levels=idLevels)
     pData$idn = as.numeric(pData$id)
     pData$features.plot = factor(pData$features.plot, levels=featureLevels)
-
+    
     plotData[[plotName]] = pData
   }
-
-
+  
+  
   # prepare ID DF
   idDF = data.frame()
   for (plotName in names(plotData))
@@ -1227,69 +1270,72 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes = c(""), group.by="cel
     pData = plotData[[plotName]]
     idDF = rbind(idDF, pData[, c("id", "idn")])
   }
-
+  
   rownames(idDF) = NULL
   idDF = unique(idDF)
-
+  
   if (!is.null(scale.by))
   {
     title.expression = paste("Avg. Expression\n(scaled by ", scale.by, ")", sep="")
   } else {
     title.expression = "Avg. Expression"
   }
-
+  
   if (abundance.perelem)
   {
     title.cellabundance = "Cell Abundance\n(per condition)"
   } else {
     title.cellabundance = "Cell Abundance\n(all object cells)"
   }
-
+  
   plotList = list()
   
   for (plotName in names(plotData))
   {
     pData = plotData[[plotName]]
-
-    print(pData)
-
-    pData2 = merge(x=pData,y=ctFractions[[plotName]],by.x="id", by.y=group.by,all.x=TRUE)
-    pData <-pData2 %>% dplyr::mutate(featuren=as.numeric(features.plot), percn=100*perc)  
-
-    print(pData)
+    
+    ctFrac = ctFractions[[plotName]]
+    colnames(ctFrac) = c("Var1", colnames(ctFrac)[2:length(colnames(ctFrac))])
+    print(head(ctFrac))
+    
+    pData2 = merge(x=pData,y=ctFrac,by.x="id", by.y="Var1",all.x=TRUE)
+    pData <-dplyr::mutate(pData2, featuren=as.numeric(features.plot), percn=100*perc)  
     
     pData[pData$avg.exp.scaled2>col.max, 'avg.exp.scaled2'] = col.max
     pData[pData$avg.exp.scaled2<col.min, 'avg.exp.scaled2'] = col.min
-
-    fillLimits = c(0, ceiling(fillLimitsMax*10)*10)
-
+    
     print(pData)
+    
+    minFeatureN = min(pData$featuren)
+    maxFeatureN = max(pData$featuren)
+    
+    fillLimits = c(0, ceiling(fillLimitsMax*10)*10)
     
     plotElem <- ggplot2::ggplot(pData) +
       ggplot2::scale_x_continuous(breaks=pData$featuren, labels=pData$features.plot) +
       ggplot2::scale_y_continuous(breaks=idDF$idn, labels=idDF$id, limits = c(min(idDF$idn)-0.6, max(idDF$idn)+0.6))+
-      ggplot2::geom_rect(ggplot2::aes(xmin=featuren-.5, xmax=featuren+.5, ymin = idn-0.5, ymax = idn+0.5, fill=percn), alpha = 0.4, linetype="blank") +
+      ggplot2::geom_rect(ggplot2::aes(xmin=minFeatureN-.5, xmax=maxFeatureN+.5, ymin = idn-0.5, ymax = idn+0.5, fill=percn), alpha = 0.4, linetype="blank") +
       ggplot2::scale_fill_distiller(palette='Spectral', limits = fillLimits)+
       ggplot2::scale_size_continuous(range = c(0, 10))+
       ggplot2::geom_point(ggplot2::aes(x=featuren, y=idn, colour = avg.exp.scaled2, size = pct.exp)) +
       ggplot2::scale_color_gradient2(limits=c(col.min, col.max), low = cols[1], mid=cols[2], high = cols[3])+
       ggplot2::guides(color=ggplot2::guide_colourbar(title=title.expression, order = 1),
-      size=ggplot2::guide_legend(title="Percent Expressing", order = 2),
-      fill=ggplot2::guide_colourbar(title=title.cellabundance, order = 3))
+                      size=ggplot2::guide_legend(title="Percent Expressing", order = 2),
+                      fill=ggplot2::guide_colourbar(title=title.cellabundance, order = 3))
     
     plotElem = plotElem + ggplot2::theme(axis.title.x=ggplot2::element_blank(), axis.title.y=ggplot2::element_blank(), legend.position = "none", panel.grid.major = ggplot2::element_blank(), panel.grid.minor = ggplot2::element_blank(),
-panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line())
-
+                                         panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line())
+    
     if (rotate.x)
     {
       plotElem = plotElem + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5))
     }
-
+    
     plotList[[plotName]] = plotElem
   }
-    
+  
   print("Final plot checks")
-
+  
   plot_list=list()
   for (plotName in names(plotList))
   {
@@ -1298,11 +1344,11 @@ panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line()
     
     print("descr label")
     pe = make_descr_label(plotElem, plotName) #plotElems[[plotName]]$label
-  
+    
     plot_list[[plotName]] = pe
- 
+    
   }
-
+  
   print("Preparing Legend")
   
   # extract a legend that is laid out horizontally #
@@ -1314,7 +1360,7 @@ panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line()
   
   title <- cowplot::ggdraw() + cowplot::draw_label(title, fontface='bold')
   print("Preparing plot")
-
+  
   dataList = list()
   for (i in 1:length(plot_list))
   {
@@ -1326,16 +1372,239 @@ panel.background = ggplot2::element_blank(), axis.line = ggplot2::element_line()
     nrow=1,
     align = "v", axis="bt"
   )
-
+  
   finalPlotList = list(title, ap, legend_b)
-
+  
   fp = combine_plot_grid_list(plotlist = finalPlotList, ncol = 1, rel_heights = c(.05, 1, 0.2) )
   fp$data = dataList
-
+  
   return(fp)
 }
 
 
+cellIDForClusters = function(obj.in, targetVar, clusters)
+{
+  
+  targetVarDF = as.data.frame(obj.in[[targetVar]])
+  #print(paste("orig:", length(rownames(targetVarDF))))
+  cellNames = rownames(targetVarDF)[targetVarDF[[targetVar]] %in% clusters]
+  
+  #print(length(cellNames))
+  return(cellNames)
+  
+}
+
+
+#' makeUMAPPlot
+#'
+#' @param obj.in Seurat object
+#' @param dim1 meta-column for y dimension
+#' @param dim2 meta-column for x dimension
+#' @param reduction dimensional reduction to plot
+#' @param xmin left x border
+#' @param xmax right x border
+#' @param ymin lower y border
+#' @param ymax upper y border
+#' @param group.by which meta-column to use for coloring the cells
+#' @param downsample whether the number of cells per group should be down-sampled to the lower number of cells per group
+#'
+#' @return
+#' @export
+#'
+#' @examples
+makeUMAPPlot = function(obj.in, dim1, dim2, reduction="umap", xmin = -11,xmax = 15,ymin = -15,ymax = 10.5, group.by="cellnames", downsample=FALSE)
+{
+  DefaultAssay(obj.in) = "RNA"
+  
+  targetElemsDim1 = sort(unique(obj.in[[dim1]][[dim1]]))
+  targetElemsDim2 = sort(unique(obj.in[[dim2]][[dim2]]))
+  
+  print(targetElemsDim1)
+  print(targetElemsDim2)
+  
+  allplots = list()
+  lastrealplot = NULL
+  
+  minCells = length(colnames(obj.in))
+  
+  if (downsample)
+  {
+    for (di1 in targetElemsDim1)
+    {
+      for (di2 in targetElemsDim2)
+      {
+        dimcells = intersect(
+          cellIDForClusters(obj.in, dim1, di1),
+          cellIDForClusters(obj.in, dim2, di2)
+        )
+        
+        if (length(dimcells) > 10)
+        {
+          minCells = min(c(minCells, length(dimcells)))
+        }
+      }
+    }
+    
+    print(paste("Downsampling", minCells))
+  }
+  
+  for (di1 in targetElemsDim1)
+  {
+    
+    for (di2 in targetElemsDim2)
+    {
+      
+      pname = paste(di1, di2, sep="_")
+      print(pname)
+      
+      dimcells = intersect(
+        cellIDForClusters(obj.in, dim1, di1),
+        cellIDForClusters(obj.in, dim2, di2)
+      )
+      
+      if ((downsample) && (length(dimcells) > minCells))
+      {
+        dimcells = sample(dimcells, minCells)
+      }
+      
+      print(length(dimcells))
+      
+      if (length(dimcells) == 0)
+      {
+        allplots[[pname]] = ggplot2::ggplot() + ggplot2::theme_void()
+      } else {
+        allplots[[pname]] = Seurat::DimPlot(subset(obj.in, cells=dimcells), group.by=group.by)  + ggplot2::xlim(xmin, xmax) + ggplot2::ylim(ymin, ymax)+ggplot2::theme(legend.position = "none")+ggplot2::ggtitle(NULL)
+        lastrealplot = pname
+      }
+      
+      
+    }
+    
+  }
+  
+  print("Finishing Plot")
+  
+  legend_b <- cowplot::get_legend(
+    allplots[[lastrealplot]] + 
+      ggplot2::guides(color = ggplot2::guide_legend(nrow = 2, override.aes = list(size=10)))+
+      ggplot2::theme(legend.position = "bottom")
+  )
+  
+  print("Combining Plots")
+  
+  ap = combine_plot_grid_list(
+    plotlist = allplots, align="hv",
+    labels = names(allplots), ncol=length(targetElemsDim2)
+  )
+  
+  
+  titletext = paste("DimPlot", dim1, dim2, sep=" ")
+  if (downsample)
+  {
+    titletext = paste(titletext, "(downsampled to", minCells, "cells)", sep=" ")
+  }
+  title <- cowplot::ggdraw() + cowplot::draw_label(titletext, fontface='bold')
+  print("Combining Legend")
+  fp = combine_plot_grid_list(plotlist=list(title, ap, legend_b), ncol = 1, rel_heights = c(.1, 1, .1))
+  
+  
+  return(fp)
+}
+
+
+
+
+#' SplitFeaturePlot - creates a Featureplot split by a given condition and equal scales over all subplots
+#'
+#' @param obj Seurat object
+#' @param feature which feature to show
+#' @param split.by by which condition/meta-data column to split
+#' @param title Title of the plot
+#' @param limits limits of the features
+#' @param reduction which reduction to plot
+#' @param ncol how many columns the plot should have
+#' @param low color for low expression
+#' @param high color for high expression
+#' @param mid medium color
+#' @param mirrorLimits whether limits should be mirrored. useful for scaled data.
+#'
+#' @return
+#' @export
+#'
+#' @examples
+splitFeaturePlot = function(obj, feature, split.by, title=NULL, limits=c(-1,1), reduction="umap", ncol=NULL, low="lightgrey", high="blue", mid="white", mirrorLimits=TRUE)
+{
+  abLimit = max(abs(limits))
+  
+  if (mirrorLimits)
+  {
+    limits = c(-abLimit, abLimit)
+  }
+  
+  print(paste("limits", limits))
+  
+  pds = Seurat::FeaturePlot(obj, features = feature, reduction = reduction, split.by=split.by, combine=F,min.cutoff=limits[1], max.cutoff=limits[2],order=T)
+  pds[[1]] = pds[[1]] + ggplot2::ggtitle(NULL)
+  
+  print(paste(length(pds)))
+  pdsRange = c(1:(length(pds)))
+  
+  for (i in pdsRange)
+  {
+    print(i)
+    
+    if (is.null(mid))
+    {
+      cGradient = ggplot2::scale_color_gradient(limits = limits, low = low, high = high)
+    } else {
+      cGradient = ggplot2::scale_color_gradient2(limits = limits, low = low, high = high, mid=mid)
+    }
+    
+    
+    pds[[i]] = pds[[i]] + cGradient + ggplot2::theme(axis.text.x = ggplot2::element_text(face="bold", color="#000000", size=14, angle=0), axis.text.y = ggplot2::element_text(face="bold", color="#000000", size=14, angle=0), legend.position = c(0.05,0.1), legend.key.height = ggplot2::unit(0.25, 'cm'), legend.text = ggplot2::element_text(size=8  ))+ggplot2::labs(x="", y="")  
+  }
+  
+
+  if (is.null(ncol))
+  {
+    ncol=length(pds)
+  }
+  
+  nrow = length(pds)%/%ncol
+  
+  print(paste("ncol", ncol))
+  
+  #prow =combine_plot_grid_list(plotlist=pds, ncol=ncol, align="hv") #label_x = "a",
+  # now add the title
+  
+  if (!is.null(title))
+  {
+    title <- cowplot::ggdraw() + 
+      cowplot::draw_label(
+        title,
+        fontface = 'bold',
+        x = 0,
+        hjust = 0
+      ) +
+      ggplot2::theme(
+        
+        plot.margin = ggplot2::margin(0, 0, 0, 7)
+      )
+  }
+
+  
+  
+  fplot = combine_plot_grid_list(plotlist=pds, label_x = "a", ncol=ncol, align="hv")
+  
+  if (!is.null(title))
+  {
+    fplot= combine_plot_grid_list(plotlist=list(title, fplot), ncol=1, rel_heights=c(0.1, 1))
+  }
+  
+  
+
+  return(fplot)
+}
 
 #
 ##
