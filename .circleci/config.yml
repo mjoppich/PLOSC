@@ -22,6 +22,9 @@ jobs:
           name: "WhichR"
           command: "which R"
       - run:
+          name: "lsb_release"
+          command: "lsb_release -a"
+      - run:
           name: "add-apt"
           command: "add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
       - run:
