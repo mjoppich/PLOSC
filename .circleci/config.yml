@@ -17,10 +17,10 @@ jobs:
       - checkout
       - run:
           name: "Deps"
-          command: "apt update && apt install -y gpg dirmngr gpg-agent software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
+          command: "apt update && apt install -y gpg dirmngr gpg-agent python3-software-properties software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
       - run:
           name: "WhichR"
-          command: "which R && add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
+          command: "which R && add-apt-repository -y 'ppa:c2d4u.team/c2d4u4.0+'"
       - run:
           name: "Install devtools"
           command: "apt install -y r-cran-devtools r-cran-biocmanager r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
