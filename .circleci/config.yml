@@ -23,7 +23,7 @@ jobs:
           command: "which R"
       - run:
           name: "add-apt"
-          command: "add-apt-repository ppa:c2d4u.team/c2d4u4.0+"
+          command: "add-apt-repository -y ppa:c2d4u.team/c2d4u4.0+"
       - run:
           name: "update"
           command: "apt update"
