@@ -97,16 +97,15 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
   {
     if (class(plotobj$data) %in% c("list"))
     {
-      print("list case")
       for (i in 1:length(plotobj$data))
       {
+        tryCatch({
+        
         fname = paste(outname,i, "data", sep=".")
-        print(paste("Saving to file", fname))
         
         if (class(plotobj$data[[i]]) %in% c("list"))
         {
-            print("multi list case")
-            for (j in 1:length(plotobj$data[[i]]))
+                        for (j in 1:length(plotobj$data[[i]]))
             {
                 fname = paste(outname,i, j, "data", sep=".")
                 print(paste("Saving to file", fname, class(plotobj$data[[i]][[j]])))
@@ -122,6 +121,8 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
             
             tryCatch(write.table(plotobj$data[[i]], fname, row.names = TRUE, sep="\t"), error = function(e) NULL)
         }
+        
+        })
         
       }
     } else {

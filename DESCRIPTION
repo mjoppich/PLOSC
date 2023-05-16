@@ -36,4 +36,7 @@ Imports: Tempora,
             circlize,
             pbapply,
             future,
-            magrittr
+            magritt,
+            org.Mm.eg.db,
+            org.Hs.eg.db,
+            ReactomePA

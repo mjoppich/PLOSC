@@ -1367,8 +1367,8 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
     
     joinedData = joinedData[!is.na(joinedData$p_val),]
     
-    suffix1=stringr::str_replace_all(str_replace_all(suffix1, "\\/", "_"), " ", "_")
-    suffix2=stringr::str_replace_all(str_replace_all(suffix2, "\\/", "_"), " ", "_")
+    suffix1=stringr::str_replace_all(stringr::str_replace_all(suffix1, "\\/", "_"), " ", "_")
+    suffix2=stringr::str_replace_all(stringr::str_replace_all(suffix2, "\\/", "_"), " ", "_")
 
     
     outfile = paste(outfolder, "/", prefix, ".", suffix1, "_", suffix2, ".tsv", sep="")
@@ -1383,7 +1383,7 @@ compareClusters = function(scdata, cellsID1, cellsID2, suffix1, suffix2, prefix=
 
     if (heatmap.plot)
     {
-      genes.interest = (joinedData[joinedData$p_val_adj < heatmap.pcutoff,] %>% arrange(p_val_adj) %>% head(40) %>% top_n(40, avg_log2FC))$gene
+      genes.interest = dplyr::top_n(head(dplyr::arrange(joinedData[joinedData$p_val_adj < heatmap.pcutoff,], p_val_adj), 40), 40, avg_log2FC)$gene
 
       if (!is.null(heatmap.addgenes))
       {
@@ -1482,7 +1482,7 @@ compareCellsByCluster = function(inobj, cellsID1, cellsID2, suffix1, suffix2, gr
         next
       }
 
-      clusterID_file=stringr::str_replace_all(str_replace_all(clusterID, "\\/", "_"), " ", "_")
+      clusterID_file=stringr::str_replace_all(stringr::str_replace_all(clusterID, "\\/", "_"), " ", "_")
 
   
       deMarkers = compareClusters(scdata=inobj,
@@ -1565,8 +1565,8 @@ makeVolcanos = function(loMG, titlePrefix, outname, restrict_labels=NULL, turnEx
       next()
     }
     
-    cName = stringr::str_replace_all(str_replace_all(cName, "\\/", "_"), " ", "_")
-    popName = stringr::str_to_lower( stringr::str_replace_all(str_replace_all(str_replace_all( cName, "\\(|\\)| ", "_"), "__", "_"), "_$", "") )
+    cName = stringr::str_replace_all(stringr::str_replace_all(cName, "\\/", "_"), " ", "_")
+    popName = stringr::str_to_lower( stringr::str_replace_all(stringr::str_replace_all(stringr::str_replace_all( cName, "\\(|\\)| ", "_"), "__", "_"), "_$", "") )
 
     plotlabels = NULL
     

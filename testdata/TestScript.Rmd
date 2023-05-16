@@ -142,7 +142,6 @@ save_plot(p, "split_dimplot_downsample", 24, 20)
 
 ```{r}
 
-
 dir.create("libintegration/de")
 
 exprdfTT = makeDEResults(obj.integrated, assay="RNA", test="t")
@@ -189,15 +188,22 @@ save_plot(p, "split_featureplot_isg", 30, 15)
 
 ```{r fig.width=12, fig.height=8}
 
-
 p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE)
 save_plot(p, "comparative_violin_isg", 12, 8)
 
+```
+
+```{r fig.width=12, fig.height=8}
+
+dsrCols = list("Ctrl"="steelblue4", "TP 1"="darkred", "TP 2"="chocolate2", "TP 3"="darkseagreen3")
+
+p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE, dsrCols = dsrCols, boxplot_grey = "ivory4")
+save_plot(p, "comparative_violin_isg_custom", 12, 8)
 
 ```
 
 ```{r}
-obj.integrated = ScaleData(obj.integrated)
+obj.integrated = Seurat::ScaleData(obj.integrated)
 obj.integrated
 ```
 
@@ -231,6 +237,8 @@ save_plot(p, "heatmap_split_isg_genes", 30, 10, save.data = FALSE)
 
 
 ```
+
+
 ```{r fig.width=30, fig.height=10}
 source("../R/plots.R")
 
@@ -239,6 +247,8 @@ save_plot(p, "heatmap_split_isg_genes_ALL", 30, 10, save.data = FALSE)
 
 
 ```
+
+
 ```{r fig.width=30, fig.height=10}
 source("../R/plots.R")
 
@@ -247,9 +257,7 @@ save_plot(p, "heatmap_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
 
 
 ```
-```{r}
-cells.tp1
-```
+
 
 ```{r, fig.height=12, fig.width=16}
 
@@ -258,7 +266,6 @@ source("../R/plots.R")
 cells.control = cellIDForClusters(obj.integrated, "condition", c("CONTROL"))
 cells.symptomatic = cellIDForClusters(obj.integrated, "condition", c("SYMPTOMATIC"))
 cells.asymptomatic = cellIDForClusters(obj.integrated, "condition", c("ASYMPTOMATIC"))
-
 
 plotElems = list()
 plotElems[["Control"]] = list(cells=intersect(cells.control, cells.control), label="Control")
@@ -297,16 +304,52 @@ save_plot(p, "edotplot_split_isg_genes_FEATURE", 30, 10, save.data = FALSE)
 ```
 
 
+
 ```{r}
-source("../R/plots.R")
-source("../R/scripts.R")
+
+cells.tp1 = cellIDForClusters(obj.integrated, "tp", c("TP 1"))
+
+comparison.sympt_asympt = compareCellsByCluster(obj.integrated, intersect(cells.symptomatic, cells.tp1), intersect(cells.asymptomatic, cells.tp1), "symptomatic", "asymptomatic", outfolder="./de", group.by="idents", heatmap.plot=TRUE)
+
 ```
 
 
+```{r}
+source("../R/plots.R")
+source("../R/scripts.R")
+source("../R/enrichment.R")
+```
+
+```{r}
+
+makeVolcanos(comparison.sympt_asympt, "Comparison Symptomatic vs. Asymptoamtic", "./de_volcanos/sympt_asympt_tp1", FCcutoff=0.25)
+
+```
 
 
+```{r}
+
+source("../R/plots.R")
+source("../R/scripts.R")
+source("../R/enrichment.R")
+
+```
+
+```{r}
+
+gseResults = performEnrichtmentAnalysis(obj.integrated, comparison.sympt_asympt, "human", "./gse_results.rds")
 
 
+```
+
+```{r}
+
+source("../R/enrichment.R")
+
+makeEnrichmentPlots( gseResults, outfolder = "enrichment_plots/" )
+
+
+```
 
 
 
