@@ -37,6 +37,9 @@ if __name__ == '__main__':
     outputGEXUmi = args.output + "_gex_S1_L001_R1_001.fastq"+ ("" if not compressOutput else ".gz")
     outputGEXRead = args.output + "_gex_S1_L001_R2_001.fastq"+ ("" if not compressOutput else ".gz")
 
+    print("Read-demultiplex script written by Markus Joppich.")
+    print("When used, please cite https://github.com/mjoppich/PLOSC or the accompanying article.")
+
     print(outputABUmi)
     print(outputABRead)
     print(outputGEXUmi)
