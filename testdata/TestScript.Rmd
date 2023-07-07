@@ -58,7 +58,6 @@ finalList = prepareIntegration(objlist, cc.use.genes = cc.genes, nfeatures.varia
 
 integratedList_sample = performIntegration(finalList$data, "libintegration", features.integration = finalList$features, gex.method.normalization="LogNormalize", gex.method.integration="rpca", add.do=FALSE, run.parallel=FALSE)
 
-
 ```
 
 ```{r}
@@ -118,7 +117,6 @@ annotateList.sample_condition = list(
   list(name="TP 2", selector="^20094_0008"),
   list(name="TP 3", selector="^20094_0009"),
   list(name="Ctrl", selector="^20094_0012")
-
 )
 
 obj.integrated = annotateByCellnamePattern( obj.integrated, "tp", annotateList.sample_condition, order=c("Ctrl", "TP 1", "TP 2", "TP 3"))

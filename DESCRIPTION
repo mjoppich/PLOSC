@@ -11,8 +11,7 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.2
 Depends: R (>= 4.0.0)
-Imports: Tempora,
-            Seurat,
+Imports:    Seurat,
             ggplot2,
             cowplot,
             stringr,
@@ -24,7 +23,6 @@ Imports: Tempora,
             data.table,
             writexl,
             EnhancedVolcano,
-            ggsunburst,
             ggrepel,
             RColorBrewer,
             svglite,
@@ -36,7 +34,6 @@ Imports: Tempora,
             circlize,
             pbapply,
             future,
-            magritt,
             org.Mm.eg.db,
             org.Hs.eg.db,
             ReactomePA

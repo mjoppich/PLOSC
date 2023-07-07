@@ -433,7 +433,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
 
   if (!is.null(split.by))
   {
-    stat.test = rstatix::pairwise_t_test(stat.test,
+    stat.test = rstatix::pairwise_t_test(as.data.frame(stat.test),
         as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
@@ -442,7 +442,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
     print(head(as.data.frame(stat.test)))
     
     
-    stat.test = rstatix::pairwise_t_test(stat.test,
+    stat.test = rstatix::pairwise_t_test(as.data.frame(stat.test),
         as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
