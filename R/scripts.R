@@ -15,16 +15,41 @@ magrittr::`%>%`
 ##
 #
 
-patternList.human = list()
-patternList.human[["MT"]] = "^MT-"
-patternList.human[["RPL"]] = "^RPL"
-patternList.human[["RPS"]] = "^RPS"
+#' Returns a patternlist to identify mitochondrial and ribosomal genes in human
+#'
+#' @return patternlist
+#' @export
+#'
+#' @examples
+patternList_human = function()
+{
 
+  patternList.human = list()
+  patternList.human[["MT"]] = "^MT-"
+  patternList.human[["RPL"]] = "^RPL"
+  patternList.human[["RPS"]] = "^RPS"
+  
+  return(patternList.human)
+    
+}
 
-patternList.mouse = list()
-patternList.mouse[["MT"]] = "^mt-"
-patternList.mouse[["RPL"]] = "^Rpl"
-patternList.mouse[["RPS"]] = "^Rps"
+#' Returns a patternlist to identify mitochondrial and ribosomal genes in mouse
+#'
+#' @return patternlist
+#' @export
+#'
+#' @examples
+patternList_mouse = function()
+{
+  
+  patternList.mouse = list()
+  patternList.mouse[["MT"]] = "^mt-"
+  patternList.mouse[["RPL"]] = "^Rpl"
+  patternList.mouse[["RPS"]] = "^Rps"
+  
+  return(patternList.mouse)
+  
+}
 
 
 

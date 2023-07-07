@@ -2,14 +2,11 @@
 
 ```{r}
 
+# install.packages("hdf5r")
+# BiocManager::install(c("biomaRt", "clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
+# remotes::install_github("mjoppich/PLOSC")
+
 library("Seurat")
-
-#source("../R/plots.R")
-#source("../R/scripts.R")
-
-
-# BiocManager::install(c("clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
-
 library("PLOSC")
 
 ```
