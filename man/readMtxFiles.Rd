@@ -4,10 +4,12 @@
 \alias{readMtxFiles}
 \title{Reads in a list of mtx files and returns two named lists of gene expression counts and Antibody Capture Counts}
 \usage{
-readMtxFiles(files)
+readMtxFiles(files, sample_element = 3)
 }
 \arguments{
 \item{files}{list of mtx paths}
+
+\item{sample_element}{in the split path, which element is the sample name}
 }
 \value{
 list of gex and ab (gene expression, antibody capture) lists of per cell counts

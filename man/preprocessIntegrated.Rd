@@ -14,7 +14,9 @@ preprocessIntegrated(
   plot.reduction = "umap",
   dim.reduction = "umap",
   with.hto = TRUE,
-  run.parallel = TRUE
+  run.parallel = TRUE,
+  run.umap_neighbors = TRUE,
+  clusters.graph.name = NULL
 )
 }
 \arguments{
@@ -37,6 +39,8 @@ preprocessIntegrated(
 \item{with.hto}{whether also HTO plots should be prepared}
 
 \item{run.parallel}{whether the ScaleData function should run in parallel or sequential}
+
+\item{run.umap_neighbors}{whether to run RunUMAP, FindNeighbors and FindClusters}
 }
 \value{
 preprocessed Seurat object

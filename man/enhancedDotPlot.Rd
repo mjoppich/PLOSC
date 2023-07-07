@@ -7,11 +7,11 @@
 enhancedDotPlot(
   scobj,
   plotElems,
-  featureGenes = c(""),
+  featureGenes,
   group.by = "cellnames_manual",
   col.min = -3,
   col.max = 3,
-  cols = c("grey", "blue"),
+  cols = c("blue", "yellow", "red"),
   title = "",
   scale.by = "GROUP",
   rotate.x = F,

@@ -17,3 +17,13 @@ These, particularly, allow the user to specify how the shown values should be sc
 
 With the PLO(SC)² framework the data analysis of scRNA-seq experiments becomes more stream-lined.
 This way, fellow researchers can directly apply the methods on their data.
+
+## Install
+
+Before installing PLO(SC)², make sure the following Bioconductor dependencies are installed:
+
+  BiocManager::install(c("biomaRt", "clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
+  
+Then you can install PLO(SC)² using remotes:
+
+  remotes::install_github("mjoppich/PLOSC")

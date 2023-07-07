@@ -4,8 +4,13 @@
 
 library("Seurat")
 
-source("../R/plots.R")
-source("../R/scripts.R")
+#source("../R/plots.R")
+#source("../R/scripts.R")
+
+
+# BiocManager::install(c("clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
+
+library("PLOSC")
 
 ```
 
@@ -199,6 +204,20 @@ p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition"
 save_plot(p, "comparative_violin_isg_custom", 12, 8)
 
 ```
+
+```{r}
+unique(obj.integrated$condition)
+```
+
+
+```{r}
+
+dsrCols = list("Ctrl"="steelblue4", "TP 1"="darkred", "TP 2"="chocolate2", "TP 3"="darkseagreen3")
+
+comparativeVioBoxPlot(subset(obj.integrated, condition=="ASYMPTOMATIC"), "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE, dsrCols = dsrCols, boxplot_grey = "ivory4")
+
+```
+
 
 ```{r}
 obj.integrated = Seurat::ScaleData(obj.integrated)
