@@ -21,7 +21,7 @@ inputMatrices = readH5Files(files, sample_element=5, sample_processor=function(x
 
 ```{r}
 
-objlist.raw = toObjList(inputMatrices, patternList.human, 3000)
+objlist.raw = toObjList(inputMatrices, patternList_human(), 3000)
 
 
 ```
