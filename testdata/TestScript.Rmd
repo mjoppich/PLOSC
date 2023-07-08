@@ -74,6 +74,8 @@ obj.integrated = preprocessIntegrated(integratedList_sample$integrated, "integra
 
 
 ```
+
+
 ```{r}
 obj.integrated@reductions$ig.umap = NULL
 ```
@@ -219,6 +221,7 @@ comparativeVioBoxPlot(subset(obj.integrated, condition=="ASYMPTOMATIC"), "isg_sc
 ```{r}
 obj.integrated = Seurat::ScaleData(obj.integrated)
 obj.integrated
+
 ```
 
 
@@ -228,9 +231,8 @@ plotGOIs = list("1"=list("clusters"=c(0), "genes"=isgGenes))
 
 p=enhancedHeatMap(obj.integrated, plotGOIs, group.by="idents", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
 save_plot(p, "heatmap_isg_genes", 12, 8, save.data = FALSE)
-
-
 ```
+
 
 
 ```{r}
@@ -244,7 +246,6 @@ save_plot(p, "heatmap_isg_genes_ALL", 12, 8, save.data = FALSE)
 ```
 
 ```{r fig.width=30, fig.height=10}
-source("../R/plots.R")
 
 p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
 save_plot(p, "heatmap_split_isg_genes", 30, 10, save.data = FALSE)
@@ -254,7 +255,6 @@ save_plot(p, "heatmap_split_isg_genes", 30, 10, save.data = FALSE)
 
 
 ```{r fig.width=30, fig.height=10}
-source("../R/plots.R")
 
 p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="ALL")
 save_plot(p, "heatmap_split_isg_genes_ALL", 30, 10, save.data = FALSE)
@@ -264,7 +264,7 @@ save_plot(p, "heatmap_split_isg_genes_ALL", 30, 10, save.data = FALSE)
 
 
 ```{r fig.width=30, fig.height=10}
-source("../R/plots.R")
+
 
 p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GROUP")
 save_plot(p, "heatmap_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
@@ -274,8 +274,6 @@ save_plot(p, "heatmap_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
 
 
 ```{r, fig.height=12, fig.width=16}
-
-source("../R/plots.R")
 
 cells.control = cellIDForClusters(obj.integrated, "condition", c("CONTROL"))
 cells.symptomatic = cellIDForClusters(obj.integrated, "condition", c("SYMPTOMATIC"))
@@ -328,11 +326,6 @@ comparison.sympt_asympt = compareCellsByCluster(obj.integrated, intersect(cells.
 ```
 
 
-```{r}
-source("../R/plots.R")
-source("../R/scripts.R")
-source("../R/enrichment.R")
-```
 
 ```{r}
 
@@ -341,13 +334,6 @@ makeVolcanos(comparison.sympt_asympt, "Comparison Symptomatic vs. Asymptoamtic",
 ```
 
 
-```{r}
-
-source("../R/plots.R")
-source("../R/scripts.R")
-source("../R/enrichment.R")
-
-```
 
 ```{r}
 
@@ -357,8 +343,6 @@ gseResults = performEnrichtmentAnalysis(obj.integrated, comparison.sympt_asympt,
 ```
 
 ```{r}
-
-source("../R/enrichment.R")
 
 makeEnrichmentPlots( gseResults, outfolder = "enrichment_plots/" )
 

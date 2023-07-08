@@ -65,31 +65,53 @@ combine_plot_grid_list = function(plotlist, ...)
 #' @param fig.width width of the plot
 #' @param fig.height height of the plot
 #' @param save.data whether to also save the data
+#' @param draw.fun Function to use to plot object if not to use plot (e.g. for complex heatmap)
 #'
 #' @return None
 #'
 #' @export
-save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
+save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE, draw.fun=NULL)
 {
   print(paste(outname, fig.width, fig.height))
   
   fname=paste(outname, "png", sep=".")
   print(paste("Saving to file", fname))
   png(filename=fname, width = fig.width, height = fig.height, units = 'in', res = 300)#width = fig.width*100, height=fig.height*100)
-  plot(plotobj)
+  
+  if (!is.null(draw.fun))
+  {
+    plot(plotobj)
+  } else {
+    draw.fun(plotobj)
+  }
+
   dev.off()
   
   fname=paste(outname, "pdf", sep=".")
   print(paste("Saving to file", fname))
   pdf(file=fname, width = fig.width, height=fig.height)
-  plot(plotobj)
+
+  if (!is.null(draw.fun))
+  {
+    plot(plotobj)
+  } else {
+    draw.fun(plotobj)
+  }
+
   dev.off()
   
 
   fname=paste(outname, "svg", sep=".")
   print(paste("Saving to file", fname))
   svglite::svglite(file = fname, width = fig.width, height = fig.height)
-  plot(plotobj)
+
+  if (!is.null(draw.fun))
+  {
+    plot(plotobj)
+  } else {
+    draw.fun(plotobj)
+  }
+
   dev.off()
   
 
@@ -97,15 +119,16 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
   {
     if (class(plotobj$data) %in% c("list"))
     {
+      print("list case")
       for (i in 1:length(plotobj$data))
       {
-        tryCatch({
-        
         fname = paste(outname,i, "data", sep=".")
+        print(paste("Saving to file", fname))
         
         if (class(plotobj$data[[i]]) %in% c("list"))
         {
-                        for (j in 1:length(plotobj$data[[i]]))
+            print("multi list case")
+            for (j in 1:length(plotobj$data[[i]]))
             {
                 fname = paste(outname,i, j, "data", sep=".")
                 print(paste("Saving to file", fname, class(plotobj$data[[i]][[j]])))
@@ -121,8 +144,6 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE)
             
             tryCatch(write.table(plotobj$data[[i]], fname, row.names = TRUE, sep="\t"), error = function(e) NULL)
         }
-        
-        })
         
       }
     } else {
