@@ -78,7 +78,7 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE, dr
   print(paste("Saving to file", fname))
   png(filename=fname, width = fig.width, height = fig.height, units = 'in', res = 300)#width = fig.width*100, height=fig.height*100)
   
-  if (!is.null(draw.fun))
+  if (is.null(draw.fun))
   {
     plot(plotobj)
   } else {
@@ -91,7 +91,7 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE, dr
   print(paste("Saving to file", fname))
   pdf(file=fname, width = fig.width, height=fig.height)
 
-  if (!is.null(draw.fun))
+  if (is.null(draw.fun))
   {
     plot(plotobj)
   } else {
@@ -105,7 +105,7 @@ save_plot = function(plotobj, outname, fig.width, fig.height, save.data=TRUE, dr
   print(paste("Saving to file", fname))
   svglite::svglite(file = fname, width = fig.width, height = fig.height)
 
-  if (!is.null(draw.fun))
+  if (is.null(draw.fun))
   {
     plot(plotobj)
   } else {
