@@ -980,7 +980,7 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     col_fun = circlize::colorRamp2(scale.limits, c("blue", "white", "red"))
 
     valueTitlePlot=valueTitle
-    if (showlegend)
+    if (!showlegend)
     {
         valueTitlePlot = NULL
     }
