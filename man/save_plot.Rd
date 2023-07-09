@@ -4,7 +4,14 @@
 \alias{save_plot}
 \title{Saves a ggplot object to png, pdf and svg}
 \usage{
-save_plot(plotobj, outname, fig.width, fig.height, save.data = TRUE)
+save_plot(
+  plotobj,
+  outname,
+  fig.width,
+  fig.height,
+  save.data = TRUE,
+  draw.fun = NULL
+)
 }
 \arguments{
 \item{plotobj}{ggplot2 object to plot}
@@ -16,6 +23,8 @@ save_plot(plotobj, outname, fig.width, fig.height, save.data = TRUE)
 \item{fig.height}{height of the plot}
 
 \item{save.data}{whether to also save the data}
+
+\item{draw.fun}{Function to use to plot object if not to use plot (e.g. for complex heatmap)}
 }
 \value{
 None
