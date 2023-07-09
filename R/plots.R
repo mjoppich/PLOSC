@@ -979,12 +979,21 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
   
     col_fun = circlize::colorRamp2(scale.limits, c("blue", "white", "red"))
 
-    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitlePlot, rect_gp = grid::gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
-    
+    valueTitlePlot=valueTitle
     if (showlegend)
     {
+        valueTitlePlot = NULL
+    }
+      
+    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitlePlot,
+                                    rect_gp = grid::gpar(col = "white", lwd = 2), column_title=plottitle,
+                                    cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+    
+    if (showlegend)
+    {        
         plot = p
     } else {
+
         plot = plot + p
     }
 
