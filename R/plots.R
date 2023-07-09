@@ -754,7 +754,7 @@ if (!is.null(scale.by) && (scale.by=="ALL"))
 
   if (!is.null(scale.by))
   {
-      valueTitle = paste("Average Scaled Expression", " (",scale.by, ")", sep="")
+      valueTitle = paste("Average Scaled Expression", "\n",scale.by, " mode", sep="")
   }
 
   if (is.null(title))
@@ -838,7 +838,7 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 
   if (!is.null(scale.by))
   {
-    valueTitle = paste("Average Scaled\nExpression (", scale.by, ")", sep="")
+    valueTitle = paste("Average Scaled Expression", "\n", scale.by, " mode", sep="")
   }
 
 
@@ -965,6 +965,8 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
       plottitle = paste(title, " (", splitName, ")", sep="")
     }
 
+    valueTitlePlot = paste(valueTitle, splitName, sep=" ")
+
     mat = processedMats[[splitName]]
 
     if (!is.null(scale.limits))
@@ -976,9 +978,8 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     }
   
     col_fun = circlize::colorRamp2(scale.limits, c("blue", "white", "red"))
-    print(col_fun)
 
-    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitle, rect_gp = grid::gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
+    p = ComplexHeatmap::Heatmap(mat, col=col_fun,show_heatmap_legend=showlegend, name=valueTitlePlot, rect_gp = grid::gpar(col = "white", lwd = 2), column_title=plottitle, cluster_rows = FALSE, row_order = rownames(mat), column_order = colnames(mat))
     
     if (showlegend)
     {
@@ -1404,6 +1405,15 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
 }
 
 
+
+#' cellIDForClusters selects cells given a value to look for and a meta-data column to search in
+#'
+#' @param obj.in Seurat object
+#' @param targetVar column to look in
+#' @param clusters values to look in for
+#' 
+#' @return
+#' @export
 cellIDForClusters = function(obj.in, targetVar, clusters)
 {
   
