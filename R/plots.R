@@ -454,7 +454,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
 
   if (!is.null(split.by))
   {
-    stat.test = rstatix::pairwise_t_test(as.data.frame(stat.test),
+    stat.test = rstatix::pairwise_t_test(stat.test,
         as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
@@ -463,7 +463,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
     print(head(as.data.frame(stat.test)))
     
     
-    stat.test = rstatix::pairwise_t_test(as.data.frame(stat.test),
+    stat.test = rstatix::pairwise_t_test(stat.test,
         as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
@@ -546,9 +546,10 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
   }
   
   stat.test = stat.test[stat.test$p.adj < adj.pval.threshold,]
-  
-  stat.test <- rstatix::add_xy_position(stat.test, x = group.by, dodge = 0.8, step.increase=yStepIncrease)
-  
+   
+  stat.test <- rstatix::add_y_position(stat.test, step.increase=yStepIncrease) %>% rstatix::add_x_position(x = group.by, dodge=0.8)
+
+
   print(dim(stat.test))
   
   top_space = (dim(stat.test)[1]+1) * yStepIncrease
