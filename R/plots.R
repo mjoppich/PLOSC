@@ -1089,8 +1089,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
       rownames(avgexpMat) = featureGenes
     }
     
-    print(avgexpMat)
-    
+   
     #avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
     avgExpr = reshape2::melt(avgexpMat)
     colnames(avgExpr) = c("features.plot", "id", "avg.exp")
@@ -1336,9 +1335,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
     pData[pData$avg.exp.scaled2>col.max, 'avg.exp.scaled2'] = col.max
     pData[pData$avg.exp.scaled2<col.min, 'avg.exp.scaled2'] = col.min
-    
-    print(pData)
-    
+        
     minFeatureN = min(pData$featuren)
     maxFeatureN = max(pData$featuren)
     
