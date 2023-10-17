@@ -17,7 +17,7 @@ jobs:
       - checkout
       - run:
           name: "Deps"
-          command: "apt update && apt install -y gpg dirmngr gpg-agent python3-launchpadlib python3-software-properties software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
+          command: "apt update && apt install -y gpg dirmngr gpg-agent python3-launchpadlib python3-software-properties software-properties-common libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype-dev libpng-dev libtiff5-dev libjpeg-dev"
       - run:
           name: "WhichR"
           command: "which R"
