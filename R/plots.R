@@ -330,7 +330,8 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' @return ggplot2 object 
 #' 
 #' @export
-comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=0.05, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.5, override=FALSE, boxplot_grey="grey", verbose=FALSE)
+
+comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=0.05, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.5, override=FALSE, boxplot_grey="grey", verbose=FALSE, assay="RNA")
 {
   
   remainingCells = NULL
@@ -399,15 +400,25 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
   if ((is.null(split.values) && !is.null(split.by)))
   {
     split.values = as.character(unique(obj.sc@meta.data[[split.by]]))
-    print(split.values)
+  } else {
+    split.values = as.character(unique(obj.sc@meta.data[[group.by]]))
   }
   
   if (feature %in% colnames(obj.sc@meta.data))
   {
     dataDF = obj.sc@meta.data[,c(feature, group.by, split.by)]
   } else {
-    dataDF = obj.sc@meta.data[,c(group.by, split.by)]
-    dataDF[[feature]] = obj.sc@assays$RNA@data[feature, rownames(dataDF)]
+
+    if (is.null(split.by))
+    {
+      dataDF = subset(obj.sc@meta.data, select=group.by)
+      dataDF$id = seq(1:dim(dataDF)[1])
+
+    } else {
+      dataDF = obj.sc@meta.data[,c(group.by, split.by)]
+    }
+          
+    dataDF[[feature]] = obj.sc@assays[[assay]]@data[feature, rownames(dataDF)]
   }
   
   if (!is.null(split.by))
@@ -449,26 +460,29 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
       keepAC = c(keepAC, ac)
     }
   }
+
+  if (verbose)
+  {
+    print(head(dataDF))
+  }
   
   stat.test = dplyr::group_by_at(dplyr::filter(dataDF, (!!as.symbol(group.by)) %in% keepAC), group.by, .add=T)
 
   if (!is.null(split.by))
   {
+    #stat.test = tibble::as_tibble(stat.test)
     stat.test = rstatix::pairwise_t_test(stat.test,
         as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
   } else {
-    
-    print(head(as.data.frame(stat.test)))
-    
-    
+
+    stat.test = tibble::as_tibble(stat.test)
     stat.test = rstatix::pairwise_t_test(stat.test,
         as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
         p.adjust.method = "BH"
       )
     
-    print(stat.test)
   }
   
   
@@ -537,36 +551,41 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
   
   if (!is.null(dsrCols))
   {
+    print(split.values)
     bxp = bxp + ggplot2::scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])
   }
   
-  if (verbose)
-  {
-    print(stat.test)
-  }
-  
+
   stat.test = stat.test[stat.test$p.adj < adj.pval.threshold,]
    
   stat.test <- rstatix::add_y_position(stat.test, step.increase=yStepIncrease) %>% rstatix::add_x_position(x = group.by, dodge=0.8)
-
-
-  print(dim(stat.test))
   
-  top_space = (dim(stat.test)[1]+1) * yStepIncrease
-  
-  ymin = 0
-  if (minValue < 0)
+  if (verbose)
   {
-    ymin = floor(minValue*1.1)
-  } else {
-    ymin = floor(minValue*0.9)
+    print(as.data.frame(stat.test))
+    print(dim(stat.test))
   }
   
-  ymax = ceiling(maxValue+top_space) + min(0.2, 0.2*maxValue)
 
-  bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(ymin, ymax)
+  #otherwise no plot if no sig comparisons ...
+  if (dim(stat.test)[1] > 0)
+  {
+    ymin = 0
+    if (minValue < 0)
+    {
+      ymin = floor(minValue*1.1)
+    } else {
+      ymin = floor(minValue*0.9)
+    }
+    
+    ymax = ceiling(max(stat.test$y.position))
+    bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(ymin, ymax)
+
+  }
+  
   return(bxp)
 }
+
 
 
 
