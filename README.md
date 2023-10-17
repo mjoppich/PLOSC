@@ -22,8 +22,8 @@ This way, fellow researchers can directly apply the methods on their data.
 
 Before installing PLO(SC)², make sure the following Bioconductor dependencies are installed:
 
-  BiocManager::install(c("biomaRt", "clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
+    BiocManager::install(c("biomaRt", "clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
   
 Then you can install PLO(SC)² using remotes:
 
-  remotes::install_github("mjoppich/PLOSC")
+    remotes::install_github("mjoppich/PLOSC")
