@@ -1300,7 +1300,8 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   } else {
     stopifnot(FALSE)
   }
-  
+
+    all_percentages = c()
   
   for (plotName in names(plotData))
   {
@@ -1309,10 +1310,13 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     pData$id = factor(pData$id, levels=idLevels)
     pData$idn = as.numeric(pData$id)
     pData$features.plot = factor(pData$features.plot, levels=featureLevels)
+    all_percentages = c(all_percentages, pData$pct.exp)
     
     plotData[[plotName]] = pData
   }
-  
+
+
+      
   
   # prepare ID DF
   idDF = data.frame()
@@ -1334,9 +1338,9 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   
   if (abundance.perelem)
   {
-    title.cellabundance = "Cell Abundance\n(per condition)"
+    title.cellabundance = "Cluster Abundance\n(per condition)"
   } else {
-    title.cellabundance = "Cell Abundance\n(all object cells)"
+    title.cellabundance = "Cluster Abundance\n(all object cells)"
   }
   
   plotList = list()
@@ -1347,7 +1351,6 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
     ctFrac = ctFractions[[plotName]]
     colnames(ctFrac) = c("Var1", colnames(ctFrac)[2:length(colnames(ctFrac))])
-    print(head(ctFrac))
     
     pData2 = merge(x=pData,y=ctFrac,by.x="id", by.y="Var1",all.x=TRUE)
     pData <-dplyr::mutate(pData2, featuren=as.numeric(features.plot), percn=100*perc)  
@@ -1365,7 +1368,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
       ggplot2::scale_y_continuous(breaks=idDF$idn, labels=idDF$id, limits = c(min(idDF$idn)-0.6, max(idDF$idn)+0.6))+
       ggplot2::geom_rect(ggplot2::aes(xmin=minFeatureN-.5, xmax=maxFeatureN+.5, ymin = idn-0.5, ymax = idn+0.5, fill=percn), alpha = 0.4, linetype="blank") +
       ggplot2::scale_fill_distiller(palette='Spectral', limits = fillLimits)+
-      ggplot2::scale_size_continuous(range = c(0, 10))+
+      ggplot2::scale_size(range = c(0, 10), limits = c(0, ceiling(max(all_percentages)))) +
       ggplot2::geom_point(ggplot2::aes(x=featuren, y=idn, colour = avg.exp.scaled2, size = pct.exp)) +
       ggplot2::scale_color_gradient2(limits=c(col.min, col.max), low = cols[1], mid=cols[2], high = cols[3])+
       ggplot2::guides(color=ggplot2::guide_colourbar(title=title.expression, order = 1),
@@ -1390,8 +1393,6 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   {
     
     plotElem = plotList[[plotName]]      
-    
-    print("descr label")
     pe = make_descr_label(plotElem, plotName) #plotElems[[plotName]]$label
     
     plot_list[[plotName]] = pe
@@ -1404,7 +1405,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   legend_b <- ggpubr::get_legend(
     plotElem + 
       ggplot2::guides(color = ggplot2::guide_colorbar(title = title.expression, direction="horizontal"))+ #guide_legend(nrow = 1, override.aes = list(size=6)))+
-      ggplot2::theme(legend.position = "bottom", legend.box = "vertical")
+      ggplot2::theme(legend.position = "bottom", legend.box = "horizontal")
   )
   
   title <- cowplot::ggdraw() + cowplot::draw_label(title, fontface='bold')
@@ -1429,7 +1430,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   
   return(fp)
 }
-
+                     
 
 
 #' cellIDForClusters selects cells given a value to look for and a meta-data column to search in
