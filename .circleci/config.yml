@@ -17,7 +17,7 @@ jobs:
       - checkout
       - run:
           name: "Update" 
-          command: "apt-get update && apt-get upgrade"
+          command: "apt-get update && apt-get upgrade -y"
       - run:
           name: "Deps"
           command: "apt -y install libxml2 libcurl4-openssl-dev libfontconfig1-dev libxml2-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev r-cran-remotes r-cran-devtools r-cran-biocmanager r-cran-httr r-cran-xml2 r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
