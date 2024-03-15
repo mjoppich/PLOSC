@@ -9,39 +9,21 @@ jobs:
     # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
-      - image: r-base
+      - image: r-base:4.3.2
     resource_class: medium
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
       - run:
-          name: "Deps"
-          command: "apt update && apt upgrade" #" && apt install -y python3-launchpadlib python3-software-properties software-properties-common"
-#      -run:
-#          name: "Deps2"
-#          command: "apt update && apt upgrade && apt install -y gpg dirmngr gpg-agent libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype-dev libpng-dev libtiff5-dev libjpeg-dev"
+          name: "Deps" 
+          command: "apt update && apt upgrade && apt install -y libxml2 libcurl4-openssl-dev libfontconfig1-dev libxml2-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
       - run:
-          name: "WhichR"
-          command: "which R"
-      - run:
-          name: "lsb_release"
-          command: "lsb_release -a"
-      - run:
-          name: "update"
-          command: "apt update"
-      - run:
-          name: "Install devtools"
-          command: "apt install -y r-cran-devtools r-cran-biocmanager r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
-      - run:
-          name: "Install Bioconductor packages"
-          command: "R -e \" BiocManager::install(c('GSVA', 'GSEABase', 'EnhancedVolcano', 'ComplexHeatmap', 'circlize', 'biomaRt', 'clusterProfiler', 'enrichplot', 'ggpubr', 'rstatix'), Ncpus = 4)\""
-#      - run:
-#          name: "Install"
-#          command: "R -e \"devtools::install_github('didacs/ggsunburst'); devtools::install_github('BaderLab/Tempora')\""
+          name: "RDeps"
+          command: "apt install -y r-cran-remotes r-cran-devtools r-cran-biocmanager r-cran-httr r-cran-xml2 r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
       - run:
           name: "Install"
-          command: "R -e \"devtools::install_github('mjoppich/PLOSC')\""
+          command: "R -e \"remotes::install_github('mjoppich/PLOSC')\""
 
 
 # Invoke jobs via workflows
