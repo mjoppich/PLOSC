@@ -15,7 +15,7 @@ ui <- fluidPage(theme = shinytheme("spacelab"),
                   tabPanel(
                     "Select File",
                     sidebarPanel(
-                      selectInput('selectfile','Select File',choice = list.files(fpath, pattern = ".rds"))
+                      selectInput('selectfile','Select File',choice = list.files(fpath, pattern = ".Rds"))
                     ), #sidebarPanel
                     mainPanel("Main Panel",
                               plotOutput("dimplot"),

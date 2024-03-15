@@ -594,6 +594,43 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
 
 
 
+get_average_expression = function(obj.in, assay="RNA", group.by="orig.ident", slot="data")
+{
+  
+  avgexp = as.data.frame(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, layer="data")$RNA)
+  originalValues = unique(obj.in@meta.data[, group.by])
+  
+  # values with _ in name will be with - as column name ...
+  allIDValues = colnames(avgexp)
+  
+  newIDValues = c()
+  for (idv in allIDValues)
+  {
+    if (idv %in% originalValues)
+    {
+      newIDValues = c(newIDValues, idv)
+    } else if (grepl("-", idv))
+    {
+      idvs = stringr::str_replace_all(idv, "-", "_")
+      
+      if (idvs %in% originalValues)
+      {
+        newIDValues = c(newIDValues, idvs)
+      } else {
+        newIDValues = c(newIDValues, idv)
+      }
+    } else {
+      newIDValues = c(newIDValues, idv)
+    }
+  }
+  
+  colnames(avgexp) = newIDValues
+  
+  return(avgexp)
+}
+
+
+
 
 #' Creates an enhanced HeatMap Plot
 #'
@@ -627,17 +664,21 @@ if (!is.null(scale.by))
 if (is.null(scale.by))
 {
     print("Fetching average expression")
-    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
+    avgexp = get_expression(obj.in, assay="RNA", group.by=group.by, slot="data")
+    
 
 } else {
 
   if (scale.by %in% c("ALL"))
   {
     print("Fetching average expression")
-    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA
+    #avgexp = as.matrix(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA)
+    avgexp = get_average_expression(obj.in, assay = "RNA", group.by=group.by, slot="data")
   } else {
     print("Fetching global scaled average expression")
-    avgexp = Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
+    #avgexp = as.matrix(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA)
+    avgexp = get_average_expression(obj.in, assay = "RNA", group.by=group.by, slot="scale.data")
+    
   }
 }
 
@@ -721,8 +762,9 @@ if (!is.null(scale.by) && (scale.by=="ALL"))
   }
   
 
-  matsd = sd(as.vector(mat))
-  matmean = mean(mat)
+  exprMat = as.matrix(mat)
+  matsd = sd(as.vector(exprMat))
+  matmean = mean(exprMat)
   mat = (mat-matmean) / matsd
 
   for (gname in names(goi2cluster_genes))
@@ -884,12 +926,14 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     if (is.null(scale.by) || scale.by %in% c("ALL", "GROUP"))
     {
       print("Fetching average expression")
-      avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="data")$RNA
+      #avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="data")$RNA
+      avgexp = get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="data")
 
     } else {
 
       print("Fetching global scaled average expression")
-      avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
+      #avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
+      get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="scale.data")
     }  
 
     #
@@ -959,12 +1003,12 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
   if (!is.null(scale.by) && scale.by=="ALL")
   {
 
-
     valueVec = c()
     for (splitName in names(processedMats))
     {
-      valueVec = c(valueVec, as.vector(processedMats[[splitName]]))
+      valueVec = c(valueVec, as.vector(as.matrix(processedMats[[splitName]])))
     }
+
 
     allsd = sd(valueVec)
     allmean = mean(valueVec)
@@ -1115,7 +1159,6 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     }
     
    
-    #avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
     avgExpr = reshape2::melt(as.matrix(avgexpMat))
     colnames(avgExpr) = c("features.plot", "id", "avg.exp")
     
@@ -1163,7 +1206,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     plotData[[plotName]] = avgExprM
   }
   
-  idLevels = levels(scobj@meta.data[, c(group.by)])
+  #idLevels = levels(scobj@meta.data[, c(group.by)])
   featureLevels = featureGenes
   
   
@@ -1326,12 +1369,22 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   } else {
     stopifnot(FALSE)
   }
+  
+  
+  
+  idLevels = levels(scobj@meta.data[, c(group.by)])
+  if (is.null(idLevels))
+  {
+    idLevels = unique(scobj@meta.data[, c(group.by)])
+  }
+  
 
-    all_percentages = c()
+  all_percentages = c()
   
   for (plotName in names(plotData))
   {
     pData = plotData[[plotName]]
+    print(pData)
     
     pData$id = factor(pData$id, levels=idLevels)
     pData$idn = as.numeric(pData$id)
@@ -1376,6 +1429,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     pData = plotData[[plotName]]
     
     print(pData)
+    print(idDF)
     
     ctFrac = ctFractions[[plotName]]
     colnames(ctFrac) = c("Var1", colnames(ctFrac)[2:length(colnames(ctFrac))])

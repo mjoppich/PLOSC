@@ -8,12 +8,15 @@ library(dqshiny)
 library(dplyr)
 library(Seurat)
 
+#devtools::install_github("AnalytixWare/ShinySky")
+#remotes::install_github("daqana/dqshiny")
+
 #setwd("D:/git/PLOSC")
 
 fpath <- '../'
 
 # remotes::install_local(".", force=TRUE); devtools::reload(".");
-
+# devtools::load_all("./")
 
 # Define server function
 server <- function(input, output, session) {
@@ -132,7 +135,7 @@ server <- function(input, output, session) {
         for (splitElem in splitElems)
         {
           cellnames = names(metaData[ metaData == splitElem])
-          plotElems[[splitElems]] = list(cells=cellnames, label=splitElem)
+          plotElems[[splitElem]] = list(cells=cellnames, label=splitElem)
         }
         
       }
@@ -146,7 +149,7 @@ server <- function(input, output, session) {
       if (!is.null(groupby))
       {
         allGroups = obj@meta.data[ , groupby]
-        allGroups = unique(allGroups)
+        allGroups = unique(as.character(allGroups))
         
         plotGOIs = list()
         plotGOIs[["all"]] = list(clusters=allGroups, genes=features)
@@ -154,7 +157,14 @@ server <- function(input, output, session) {
         
         if (is.null(splitby))
         {
-          p=PLOSC::enhancedHeatMap(obj.in = obj, plot_gois = plotGOIs, group.by = groupby, scale.by = scalingMode, include_all_clusters=TRUE)
+          
+          if (scalingMode %in% c("GLOBAL", "ALL"))
+          {
+            p=PLOSC::enhancedHeatMap(obj.in = obj, plot_gois = plotGOIs, group.by = groupby, scale.by = scalingMode, include_all_clusters=TRUE)
+          } else {
+            showNotification(paste("Scaling must be GLOBAL or ALL for this plot."), duration = NULL)
+            p=NULL
+          }
         } else {
           p=PLOSC::makeComplexExprHeatmapSplit(obj.in = obj, plot_gois = plotGOIs, split.by = splitby, group.by = groupby, title = "Enhanced Heat Map", scale.by = scalingMode,include_all_clusters=TRUE)
         }
@@ -164,7 +174,7 @@ server <- function(input, output, session) {
       
     }
     
-    output$enhanced_plot = p
+    output$enhanced_plot = renderPlot({p})
     
   }
   
@@ -184,7 +194,7 @@ server <- function(input, output, session) {
     if (length(obj@reductions) == 0)
     {
       print("No Reductions in Seurat Object, preprocessing")
-      PLOSC::preprocessIntegrated(obj, useAssay = "RNA", with.hto = FALSE)
+      obj = PLOSC::preprocessIntegrated(obj, useAssay = "RNA", with.hto = FALSE)
     }
     
     return(obj)
@@ -272,6 +282,11 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$v_plotmode2, {
+
+    makeEnhancedPlots(input, output)
+  })
+  
+  observeEvent(input$v_scalingmode2, {
     makeEnhancedPlots(input, output)
   })
   
