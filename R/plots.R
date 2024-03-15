@@ -252,7 +252,7 @@ VlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.size=0
     } else {
 
       plots=Seurat::VlnPlot(obj.sc.subset, gene, group.by=group.by, split.by=split.by, pt.size=pt.size, assay=assay, col=col)
-      plots = plots + ggplot2::geom_boxplot(color="grey", alpha=0.4, position =position_dodge(width = 0.9)) + ggplot2::stat_summary(fun=mean, geom="point", aes(group=split), position=position_dodge(.9), color="black", size=4)
+      plots = plots + ggplot2::geom_boxplot(color="grey", alpha=0.4, position =ggplot2::position_dodge(width = 0.9)) + ggplot2::stat_summary(fun=mean, geom="point", ggplot2::aes(group=split), position=ggplot2::position_dodge(.9), color="black", size=4)
 
     }
     
@@ -301,9 +301,15 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
       vplots[[sname]] = p
     }
 
-    ps = combine_plot_grid_list(plotlist=vplots, nrow=1)
+    if (length(vplots) > 1)
+    {
+      ps = combine_plot_grid_list(plotlist=vplots, nrow=1) 
+      return(ps)
+    } else {
+      return(vplots[[names(vplots)[1]]])
+    }
 
-    return(ps)
+    
 }
 
 
@@ -589,9 +595,9 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
 
 
 
-#' Creates an enhanced Dot Plot
+#' Creates an enhanced HeatMap Plot
 #'
-#' Creates an enhanced DotPlot of the RNA-assay expression
+#' Creates an enhanced HeatMap of the RNA-assay expression
 #'
 #' @param obj.in Seurat object for plotting
 #' @param plot_gois list of list(clusters,genes) where each entry defines the cluster to be shown, and genes the corresponding genes
@@ -797,9 +803,9 @@ if (!is.null(scale.by) && (scale.by=="ALL"))
 }
 
 
-#' Creates an enhanced Dot Plot
+#' Creates an enhanced HeatMap Plot (individual HeatMaps per split.by element)
 #'
-#' Creates an enhanced DotPlot of the RNA-assay expression
+#' Creates an enhanced HeatMap of the RNA-assay expression
 #'
 #' @param obj.in Seurat object for plotting
 #' @param plot_gois list of list(clusters,genes) where each entry defines the cluster to be shown, and genes the corresponding genes
@@ -1110,15 +1116,35 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
    
     #avgExpr = as.data.frame(data.table::data.table(features.plot = rownames(avgexpMat), id = colnames(avgexpMat), avg.exp = c(as.matrix(avgexpMat))))
-    avgExpr = reshape2::melt(avgexpMat)
+    avgExpr = reshape2::melt(as.matrix(avgexpMat))
     colnames(avgExpr) = c("features.plot", "id", "avg.exp")
     
     avgExpr = avgExpr[order(avgExpr[["features.plot"]], avgExpr[["id"]]), ]
+    avgExpr$id = as.character(avgExpr$id)
     
     p=Seurat::DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
     
-    avgExpr = merge(avgExpr, p$data[, c("id", "features.plot", "pct.exp")], by=c("id", "features.plot"))
     
+    # values with _ in name will be with - as column name ...
+    allIDValues = unique(as.character(p$data$id))
+    for (idv in allIDValues)
+    {
+      if (grepl("_", idv))
+      {
+        idvs = stringr::str_replace_all(idv, "_", "-")
+        print(paste("Replace", idvs, "with", idv))
+        avgExpr$id[ avgExpr$id == idvs] = idv
+      }
+    }
+    avgExprM = merge(avgExpr, p$data[, c("id", "features.plot", "pct.exp")], by=c("features.plot", "id"))
+  
+    # reorder
+    originalGroups = scobj@meta.data[,group.by]
+    if (is.factor(originalGroups))
+    {
+      originalSorting = levels(originalGroups)
+      avgExprM$id = factor(avgExprM$id, levels = originalSorting)
+    }
     
     scTable = table(scobj_subset[[group.by]])
     scDf = as.data.frame(scTable)
@@ -1134,7 +1160,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     fillLimitsMax = max(c(fillLimitsMax,max(scDf$perc)))
     
     ctFractions[[plotName]] = scDf   
-    plotData[[plotName]] = avgExpr
+    plotData[[plotName]] = avgExprM
   }
   
   idLevels = levels(scobj@meta.data[, c(group.by)])
@@ -1159,7 +1185,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   allIDs = unique(allIDs)
   allFeatures = unique(allFeatures)
   
-  if ((is.null(scale.by) || scale.by == "GLOBAL"))
+  if ((is.null(scale.by) || (scale.by == "GLOBAL")))
   {
     print("SCALING BY GLOBAL")
     
@@ -1348,6 +1374,8 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   for (plotName in names(plotData))
   {
     pData = plotData[[plotName]]
+    
+    print(pData)
     
     ctFrac = ctFractions[[plotName]]
     colnames(ctFrac) = c("Var1", colnames(ctFrac)[2:length(colnames(ctFrac))])

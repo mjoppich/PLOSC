@@ -965,14 +965,18 @@ run.parallel=TRUE)
 #' @return preprocessed Seurat object
 #' @export
 #'
-preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50, resolution=0.5, plot.reduction="umap", dim.reduction="umap", with.hto=TRUE, run.parallel=TRUE, run.umap_neighbors=TRUE, clusters.graph.name=NULL)
+preprocessIntegrated = function(obj.in, useAssay="RNA", inname=NULL, do.scale=T, num.pcs=50, resolution=0.5, plot.reduction="umap", dim.reduction="umap", with.hto=TRUE, run.parallel=TRUE, run.umap_neighbors=TRUE, clusters.graph.name=NULL)
 {
   
-  if (!dir.exists(inname))
+  if (!is.null(inname))
   {
-    print(paste("Creating DIR", inname))
-    dir.create(inname, recursive = TRUE)
+    if (!dir.exists(inname))
+    {
+      print(paste("Creating DIR", inname))
+      dir.create(inname, recursive = TRUE)
+    } 
   }
+
 
 
   Seurat::DefaultAssay(obj.in) <- useAssay
@@ -998,9 +1002,15 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
     
   if ((is.null(dim.reduction)) || (!dim.reduction %in% names(obj.in@reductions)))
   {
+    
+    if (length(VariableFeatures(obj.in)) == 0)
+    {
+      obj.in = Seurat::FindVariableFeatures(obj.in)
+    }
+    
+    
     print("RunPCA Data")
     dim.reduction = "pca"
-
     obj.in <- Seurat::RunPCA(obj.in, npcs = max(c(num.pcs, 50)), verbose = FALSE, reduction.name=dim.reduction)
     
   }
@@ -1010,7 +1020,12 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
   if ("pca" %in% dim.reduction)
   {
     p=Seurat::ElbowPlot(obj.in, ndims=30, reduction = dim.reduction)
-    save_plot(p, paste(inname, "elbowplot", sep="/"), 12, 6)
+    
+    if (!is.null(inname))
+    {
+      save_plot(p, paste(inname, "elbowplot", sep="/"), 12, 6)  
+    }
+    
   }
   
 
@@ -1027,13 +1042,23 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
   obj.in$idents = Seurat::Idents(obj.in)
 
   p=Seurat::DimPlot(obj.in, pt.size = 0.001, label=T, reduction = plot.reduction)
-  save_plot(p, paste(inname, "dimplot_umap", sep="/"), fig.width=12, fig.height=8)
+  if (!is.null(inname))
+  {
+    save_plot(p, paste(inname, "dimplot_umap", sep="/"), fig.width=12, fig.height=8)
+  }
 
-  numProjects = length(unique(obj.in$orig_project))
-  numRows = ceiling(numProjects/2)
+  if ("orig_project" %in% colnames(obj.in@meta.data))
+  {
+    numProjects = length(unique(obj.in$orig_project))
+    numRows = ceiling(numProjects/2)
+    
+    p=Seurat::DimPlot(obj.in, pt.size = 0.001, label=T, split.by="orig_project", reduction = plot.reduction, ncol=2)
+    if (!is.null(inname))
+    {
+      save_plot(p, paste(inname, "dimplot_umap_project", sep="/"), fig.width=24, fig.height=8*numRows)
+    }
+  }
 
-  p=Seurat::DimPlot(obj.in, pt.size = 0.001, label=T, split.by="orig_project", reduction = plot.reduction, ncol=2)
-  save_plot(p, paste(inname, "dimplot_umap_project", sep="/"), fig.width=24, fig.height=8*numRows)
   
 
   if (with.hto)
@@ -1046,7 +1071,10 @@ preprocessIntegrated = function(obj.in, useAssay, inname, do.scale=T, num.pcs=50
       numRows = ceiling(numLibHTO/3)
 
       p=Seurat::DimPlot(obj.in, split.by="libraryHTO", pt.size = 0.001, label=T, reduction = plot.reduction, ncol=3)
-      save_plot(p, paste(inname, "dimplot_umap_libraryHTO", sep="/"), fig.width=16, fig.height=min(3*numRows, 60))
+      if (!is.null(inname))
+      {
+        save_plot(p, paste(inname, "dimplot_umap_libraryHTO", sep="/"), fig.width=16, fig.height=min(3*numRows, 60))
+      }
     })
   }
 
