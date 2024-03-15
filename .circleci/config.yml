@@ -16,11 +16,11 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Deps" 
-          command: "apt update && apt upgrade && apt install -y libxml2 libcurl4-openssl-dev libfontconfig1-dev libxml2-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev"
+          name: "Update" 
+          command: "apt-get update && apt-get upgrade"
       - run:
-          name: "RDeps"
-          command: "apt install -y r-cran-remotes r-cran-devtools r-cran-biocmanager r-cran-httr r-cran-xml2 r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
+          name: "Deps"
+          command: "apt -y install libxml2 libcurl4-openssl-dev libfontconfig1-dev libxml2-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev r-cran-remotes r-cran-devtools r-cran-biocmanager r-cran-httr r-cran-xml2 r-cran-lme4 r-cran-nloptr r-cran-car r-cran-rcppeigen r-cran-ggpubr r-cran-rstatix r-cran-ggplot2"
       - run:
           name: "Install"
           command: "R -e \"remotes::install_github('mjoppich/PLOSC')\""
