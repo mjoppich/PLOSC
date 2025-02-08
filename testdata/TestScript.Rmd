@@ -1,10 +1,20 @@
 
+```{r}
+getwd()
+```
+
+```{r}
+install.packages("hdf5r")
+```
+
+
+```{r}
+remotes::install_local("../", force=TRUE, threads=4, upgrade = "never"); devtools::reload("../");
+```
+
 
 ```{r}
 
-# install.packages("hdf5r")
-# BiocManager::install(c("biomaRt", "clusterProfiler", "ReactomePA", "org.Hs.eg.db", "org.Mm.eg.db", "ComplexHeatmap", "enrichplot", "EnhancedVolcano"))
-# remotes::install_github("mjoppich/PLOSC")
 
 library("Seurat")
 library("PLOSC")
@@ -22,7 +32,6 @@ inputMatrices = readH5Files(files, sample_element=5, sample_processor=function(x
 ```{r}
 
 objlist.raw = toObjList(inputMatrices, patternList_human(), 3000)
-
 
 ```
 

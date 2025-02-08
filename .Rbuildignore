@@ -4,3 +4,7 @@
 .*\.Rds
 ^testdata.*
 ^.circleci.*
+.*\.png$
+.*\.pdf$
+.*\.svg$
+.*\.data$

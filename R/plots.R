@@ -337,7 +337,11 @@ SplitVlnBoxPlot = function( obj.sc, gene, group.by="idents", split.by=NULL, pt.s
 #' 
 #' @export
 
-comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=0.05, split.by=NULL, split.values=NULL, dsrCols=NULL, onelineLabel=FALSE, dot.size=0, min.threshold=3, yStepIncrease=0.5, override=FALSE, boxplot_grey="grey", verbose=FALSE, assay="RNA")
+comparativeVioBoxPlot = function( obj.sc, feature, group.by,
+                                  adj.pval.threshold=0.05, split.by=NULL, split.values=NULL, dsrCols=NULL,
+                                  onelineLabel=FALSE, dot.size=0, min.threshold=3,
+                                  yStepIncrease=0.5, override=FALSE, boxplot_grey="grey", verbose=FALSE, assay="RNA",
+                                  test="t")
 {
   
   remainingCells = NULL
@@ -414,17 +418,17 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
   {
     dataDF = obj.sc@meta.data[,c(feature, group.by, split.by)]
   } else {
-
+    
     if (is.null(split.by))
     {
       dataDF = subset(obj.sc@meta.data, select=group.by)
       dataDF$id = seq(1:dim(dataDF)[1])
-
+      
     } else {
       dataDF = obj.sc@meta.data[,c(group.by, split.by)]
     }
-          
-    dataDF[[feature]] = obj.sc@assays[[assay]]@data[feature, rownames(dataDF)]
+    
+    dataDF[[feature]] = Seurat::GetAssayData(obj.sc, assay=assay, layer="data")[feature, rownames(dataDF)] #obj.sc@assays[[assay]]@data[feature, rownames(dataDF)]
   }
   
   if (!is.null(split.by))
@@ -466,28 +470,35 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
       keepAC = c(keepAC, ac)
     }
   }
-
+  
   if (verbose)
   {
     print(head(dataDF))
   }
   
   stat.test = dplyr::group_by_at(dplyr::filter(dataDF, (!!as.symbol(group.by)) %in% keepAC), group.by, .add=T)
-
+  
+  testFunc = rstatix::pairwise_t_test
+  
+  if (test == "wilcox")
+  {
+    testFunc = rstatix::pairwise_wilcox_test
+  }
+  
   if (!is.null(split.by))
   {
     #stat.test = tibble::as_tibble(stat.test)
     stat.test = rstatix::pairwise_t_test(stat.test,
-        as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
-        p.adjust.method = "BH"
-      )
+                                         as.formula(paste(feature, " ~ ", split.by, sep="")), paired = FALSE, 
+                                         p.adjust.method = "BH"
+    )
   } else {
-
+    
     stat.test = tibble::as_tibble(stat.test)
     stat.test = rstatix::pairwise_t_test(stat.test,
-        as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
-        p.adjust.method = "BH"
-      )
+                                         as.formula(paste(feature, " ~ ", group.by, sep="")), paired = FALSE, 
+                                         p.adjust.method = "BH"
+    )
     
   }
   
@@ -517,7 +528,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
       keepGroup = TRUE
       for (sv in splitValues)
       {
-
+        
         sDF = dataDF[dataDF[[group.by]]==gv,]
         subsetExprDF = sDF[sDF[[split.by]]==sv,]
         
@@ -551,9 +562,9 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
   bxp = bxp +
     ggplot2::geom_boxplot(ggplot2::aes_string(fill=split.by),color=boxplot_grey, alpha=0.4, position = ggplot2::position_dodge(width = 0.9)) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust=0.5, hjust=1.0),
-          panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),
-          panel.grid.minor = ggplot2::element_blank(),
-          axis.line = ggplot2::element_line(colour = "black"),panel.background = ggplot2::element_blank())+ggplot2::labs(fill='Group')
+                   panel.border = ggplot2::element_blank(), panel.grid.major = ggplot2::element_blank(),
+                   panel.grid.minor = ggplot2::element_blank(),
+                   axis.line = ggplot2::element_line(colour = "black"),panel.background = ggplot2::element_blank())+ggplot2::labs(fill='Group')
   
   if (!is.null(dsrCols))
   {
@@ -561,9 +572,9 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
     bxp = bxp + ggplot2::scale_fill_manual(values = dsrCols[names(dsrCols) %in% split.values])
   }
   
-
+  
   stat.test = stat.test[stat.test$p.adj < adj.pval.threshold,]
-   
+  
   stat.test <- rstatix::add_y_position(stat.test, step.increase=yStepIncrease) %>% rstatix::add_x_position(x = group.by, dodge=0.8)
   
   if (verbose)
@@ -572,7 +583,7 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
     print(dim(stat.test))
   }
   
-
+  
   #otherwise no plot if no sig comparisons ...
   if (dim(stat.test)[1] > 0)
   {
@@ -586,18 +597,17 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by, adj.pval.threshold=
     
     ymax = ceiling(max(stat.test$y.position))
     bxp = bxp + ggpubr::stat_pvalue_manual(stat.test,  label = "label", tip.length = 0)+ggplot2::ylim(ymin, ymax)
-
+    
   }
   
   return(bxp)
 }
 
 
-
 get_average_expression = function(obj.in, assay="RNA", group.by="orig.ident", slot="data")
 {
   
-  avgexp = as.data.frame(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, layer="data")$RNA)
+  avgexp = as.data.frame(Seurat::AverageExpression(obj.in, assays=c(assay), group.by=group.by, layer=slot)[[assay]])
   originalValues = unique(obj.in@meta.data[, group.by])
   
   # values with _ in name will be with - as column name ...
@@ -933,7 +943,7 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 
       print("Fetching global scaled average expression")
       #avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
-      get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="scale.data")
+      avgexp = get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="scale.data")
     }  
 
     #
@@ -992,8 +1002,8 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 
     if (!is.null(scale.by) && scale.by == "GROUP")
     {
-      matsd = sd(as.vector(mat))
-      matmean = mean(mat)
+      matsd = sd(as.vector(as.matrix(mat)))
+      matmean = mean(as.matrix(mat))
       mat = (mat-matmean) / matsd
     }
 
@@ -1114,12 +1124,12 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
 #'
 #'
 #' @export
-enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_manual", col.min = -3, col.max = 3, cols = c("blue", "yellow", "red"), title="", scale.by="GROUP", rotate.x=F, abundance.perelem=FALSE, assay="RNA")
+enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_manual", col.min = -3, col.max = 3, cols = c("#006AA4", "#F0EBC3", "#9B3644"), title="", scale.by="GROUP", rotate.x=F, abundance.perelem=FALSE, assay="RNA")
 {
-
+  
   
   stopifnot(is.null(scale.by) ||scale.by %in% c("GROUP", "FEATURE", "ALL", "GLOBAL"))
-
+  
   featureGenes = unique(featureGenes)
   
   use.slot="data"
@@ -1158,7 +1168,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
       rownames(avgexpMat) = featureGenes
     }
     
-   
+    
     avgExpr = reshape2::melt(as.matrix(avgexpMat))
     colnames(avgExpr) = c("features.plot", "id", "avg.exp")
     
@@ -1180,7 +1190,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
       }
     }
     avgExprM = merge(avgExpr, p$data[, c("id", "features.plot", "pct.exp")], by=c("features.plot", "id"))
-  
+    
     # reorder
     originalGroups = scobj@meta.data[,group.by]
     if (is.factor(originalGroups))
@@ -1217,7 +1227,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     plotData[[plotName]]$features.plot = as.character(plotData[[plotName]]$features.plot)
   }
   
-
+  
   allIDs = c()
   allFeatures = c()
   for (plotName in names(plotData))
@@ -1260,65 +1270,58 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
   } else if (scale.by == "FEATURE")
   {
+    
     print("SCALING BY FEATURE")
-    print(allFeatures)
-    # calculate avg.exp.scaled2 for each feature
+    
+    allPDataElems = NULL
+    
+    for (plotName in names(plotData))
+    {
+      pData = plotData[[plotName]]
+      pData$pname = plotName
+      
+      if (is.null(allPDataElems))
+      {
+        allPDataElems = data.frame(pData)
+      } else {
+        allPDataElems = rbind(allPDataElems, pData)
+      }
+    }
+    
+    #### add missing elements as 0 - this is actually not needed!
+    #for (plotName in names(plotData))
+    #{
+    #  pData = plotData[[plotName]]
+    #  missingIDs = setdiff(allIDs, unique(pData$id))
+    #  
+    #  # this should always be 0!
+    #  print(paste(plotName, "missing IDs", paste(missingIDs, collapse = ",")))
+    #  
+    #  for (mid in missingIDs)
+    #  {
+    #    for (feature in allFeatures)
+    #    {
+    #      dfrow = data.frame(avg.exp=0.0,pct.exp=0.0,features.plot=feature, id=mid, pname = plotName)
+    #      allPDataElems = rbind.data.frame(allPDataElems, dfrow, stringsAsFactors = F)
+    #    }
+    #  }
+    #}
+    
+    
+    
+    
     for (featureName in allFeatures)
     {
-      print(featureName)
-      allUnscaledValues = NULL
-      for (plotName in names(plotData))
-      {
-        pData = plotData[[plotName]]
-        missingIDs = setdiff(allIDs, unique(pData$id))
-        
-        for (mid in missingIDs)
-        {
-          for (feature in allFeatures)
-          {
-            dfrow = data.frame(avg.exp=0.0,pct.exp=0.0,features.plot=feature, id=mid, avg.exp.scaled=0.0, avg.exp.scaled2=0.0)
-            pData = rbind.data.frame(pData, dfrow, stringsAsFactors = F)
-          }
-        }
-        
-        #pData$id = factor(pData$id, levels = allIDs)
-        #pData$features.plot = factor(pData$features.plot, levels=allFeatures)
-        
-        plotData[[plotName]] = pData
-        
-        
-        if (is.null(allUnscaledValues))
-        {
-          allUnscaledValues = data.frame(plotName=pData[ pData$features.plot==featureName, ]$avg.exp)
-          allUnscaledValues[[plotName]] = pData[ pData$features.plot==featureName, ]$avg.exp  
-          allUnscaledValues[["plotName"]] = NULL
-          
-        } else {
-          allUnscaledValues[[plotName]] = pData[ pData$features.plot==featureName, ]$avg.exp  
-        }
-        
-      }
-      
-      allUnscaledValues$rnames = as.numeric(rownames(allUnscaledValues))
-      allUnscaledLong = tidyr::gather(allUnscaledValues, Type, Value, names(plotData))
-      allUnscaledLong$Value = scale(allUnscaledLong$Value)
-      allScaledValues = dplyr::arrange(tidyr::spread(allUnscaledLong, Type, Value), order(rnames))
-      
-      for (plotName in names(plotData))
-      {
-        
-        pData = plotData[[plotName]]
-        
-        origData = pData[pData$features.plot==featureName, ]
-        pData[pData$features.plot==featureName, "avg.exp.scaled2"] = pData[pData$features.plot==featureName, "avg.exp"]
-        #pData$idn=as.numeric(pData$id)
-        
-        plotData[[plotName]] = pData
-      }
-      
-      
-      
+      allPDataElems[allPDataElems$features.plot == featureName, "avg.exp.scaled2"] = as.vector(scale(allPDataElems[allPDataElems$features.plot == featureName, "avg.exp"]))
     }
+    
+    # feeding annotated data back
+    
+    for (plotName in names(plotData))
+    {
+      plotData[[plotName]] = allPDataElems[allPDataElems$pname == plotName, ]
+    }
+    
     
   } else if (scale.by == "ALL") {
     
@@ -1378,13 +1381,12 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     idLevels = unique(scobj@meta.data[, c(group.by)])
   }
   
-
+  
   all_percentages = c()
   
   for (plotName in names(plotData))
   {
     pData = plotData[[plotName]]
-    print(pData)
     
     pData$id = factor(pData$id, levels=idLevels)
     pData$idn = as.numeric(pData$id)
@@ -1393,9 +1395,9 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
     plotData[[plotName]] = pData
   }
-
-
-      
+  
+  
+  
   
   # prepare ID DF
   idDF = data.frame()
@@ -1428,9 +1430,6 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
   {
     pData = plotData[[plotName]]
     
-    print(pData)
-    print(idDF)
-    
     ctFrac = ctFractions[[plotName]]
     colnames(ctFrac) = c("Var1", colnames(ctFrac)[2:length(colnames(ctFrac))])
     
@@ -1439,7 +1438,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
     pData[pData$avg.exp.scaled2>col.max, 'avg.exp.scaled2'] = col.max
     pData[pData$avg.exp.scaled2<col.min, 'avg.exp.scaled2'] = col.min
-        
+    
     minFeatureN = min(pData$featuren)
     maxFeatureN = max(pData$featuren)
     

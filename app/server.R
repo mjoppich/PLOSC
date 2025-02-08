@@ -15,8 +15,10 @@ library(Seurat)
 
 fpath <- '../'
 
-# remotes::install_local(".", force=TRUE); devtools::reload(".");
+# remotes::install_local(".", force=TRUE, threads=4); devtools::reload(".");
 # devtools::load_all("./")
+
+# runApp("./app")
 
 # Define server function
 server <- function(input, output, session) {
@@ -27,11 +29,15 @@ server <- function(input, output, session) {
     print(input$v_groupby1)
     print(input$v_splitby1)
     print(input$v_feature1)
+    print(input$v_ymin1)
+    print(input$v_ymax1)
     
     plotMode = input$v_plotmode1
     groupby = input$v_groupby1
     splitby = input$v_splitby1
     feature = input$v_feature1
+    ymin = input$v_ymin1
+    ymax = input$v_ymax1
     
     if (!(groupby %in% colnames(seuratObj()@meta.data)))
     {
@@ -49,23 +55,24 @@ server <- function(input, output, session) {
       
       if (plotMode == "Violin-Boxplot")
       {
-        output$vplot = renderPlot({
-          PLOSC::VlnBoxPlot(seuratObj(), gene = feature, group.by = groupby, split.by=splitby)
-        }, res = 96)
+        p=PLOSC::VlnBoxPlot(seuratObj(), gene = feature, group.by = groupby, split.by=splitby)
         
       } else if (plotMode == "Violin-Boxplot-Comparison")
       {
-        output$vplot = renderPlot({
-          PLOSC::comparativeVioBoxPlot(seuratObj(), feature = feature, group.by = groupby, split.by = splitby)
-        }, res = 96)
+        p=PLOSC::comparativeVioBoxPlot(seuratObj(), feature = feature, group.by = groupby, split.by = splitby)
         
       } else if (plotMode == "Side-by-side Violin-Boxplot")
       {
-        output$vplot = renderPlot({
-          PLOSC::SplitVlnBoxPlot(seuratObj(), gene = feature, group.by = groupby, split.by=splitby)
-        }, res = 96)
+        p=PLOSC::SplitVlnBoxPlot(seuratObj(), gene = feature, group.by = groupby, split.by=splitby)
+        
         
       }
+      
+      
+      p = p + ggplot2::ylim(c(ymin, ymax))
+      output$vplot = renderPlot({
+        p
+      }, res = 96)
       
 
     } else {
@@ -116,6 +123,15 @@ server <- function(input, output, session) {
       print("Enhanced Plots, no group")
       output$enhanced_plot = p
       return();
+    }
+    output$t_dotplot_warning = renderText("Warning: -")
+    if (scalingMode == "GLOBAL")
+    {
+      unavailFeatures = setdiff(features, head(rownames(GetAssayData(ifnb, layer = "scale"))) )
+      if (length(unavailFeatures) > 0)
+      {
+        output$t_dotplot_warning = renderText(paste("Warning! Features not available in scaled layer", paste(unavailFeatures, collapse=", ")))
+      }
     }
 
     if (plotMode == "Enhanced DotPlot")
@@ -185,7 +201,7 @@ server <- function(input, output, session) {
   })
   
   
-  seuratObj <- eventReactive(input$selectfile, {
+  seuratObj <- eventReactive(input$load_selected_file, {
     fullpath <- file.path(fpath,input$selectfile)
     print(fullpath)
     
@@ -211,6 +227,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "v_groupby2","v_groupby2", choices = c(vars), selected=vars[1])
     updateSelectInput(session, "v_splitby2","v_splitby2", choices = c("-", vars), selected="-")
     
+    update_autocomplete_input(session, "v_feature1", options = rownames(seuratObj()))
     updateSelectizeInput(session, "v_features2", choices=features)
   })
   
@@ -256,16 +273,15 @@ server <- function(input, output, session) {
   observeEvent(input$v_plotmode1, {
     makeViolinPlot(input, output)
   })
+  observeEvent(input$v_ymin1, {
+    makeViolinPlot(input, output)
+  })
+  observeEvent(input$v_ymax1, {
+    makeViolinPlot(input, output)
+  })
   
   observeEvent(input$v_feature1, {
-    
-    if (input$v_feature1 %in% rownames(seuratObj()))
-    {
-      makeViolinPlot(input, output)
-    } else {
-      update_autocomplete_input(session, "v_feature1", options = rownames(seuratObj()))  
-    }
-    
+    makeViolinPlot(input, output)
   })
   
   #
