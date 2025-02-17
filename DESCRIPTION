@@ -53,5 +53,5 @@ Imports:
   dqshiny
 Remotes:
   AnalytixWare/ShinySky,
-  daqana/dqshiny
+  daqana/dqshiny,
   YuLab-SMU/enrichplot
