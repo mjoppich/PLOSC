@@ -3,20 +3,25 @@ library(shinyFiles)
 library(shinyWidgets)
 library(shinythemes)
 library(shinysky)
+library(shinyjs)
 library(dqshiny)
 library(dplyr)
+library(bslib)
 
 fpath <- '../'
 
 # Define UI
 ui <- fluidPage(theme = shinytheme("paper"),
+                shinyjs::useShinyjs(),
                 navbarPage(
                   "PLO(SC)²: PLOts and SCripts for SCrna-seq",
+                  
                   tabPanel(
                     "Select File",
                     sidebarPanel(
                       selectInput('selectfile','Select File',choice = list.files(fpath, pattern = ".Rds")),
-                      actionButton("load_selected_file", "Load File")
+                      actionButton("load_selected_file", "Load File"),
+                      selectInput("u_groupby1", "Group-by Attribute", choices = NULL)
                     ), #sidebarPanel
                     mainPanel("Main Panel",
                               plotOutput("dimplot", width="auto", height = "800px"),
@@ -70,8 +75,93 @@ ui <- fluidPage(theme = shinytheme("paper"),
                            ) # mainPanel
                            
                   ), # Navbar 1, tabPanel
-                  
-                  
+                  tabPanel("2D UMAP",
+                           sidebarPanel(
+                             selectInput("du_groupby", "Group-by Attribute", choices = NULL),
+                             selectInput("du_scalingmode", "Scaling Mode", choices=c("All cells", "Downsample"), selected = "All cells"),
+                             selectInput("du_xsplit", "X-Split-by Attribute", choices = NULL),
+                             selectInput("du_ysplit", "Y-Split-by Attribute", choices = NULL)
+      
+                           ), #sidebarPanel
+                           
+                           mainPanel(tags$br(),tags$br(),
+                                     h4("Data Selection"),
+                                     plotOutput("du_umap", width="100%", height = "800px"),
+                                     style = "font-size:70%"
+                           ) # mainPanel
+                           
+                  ), # Navbar 1, tabPanel
+                  tabPanel("Process from Scratch",
+                           sidebarPanel(
+                             selectInput('scratch_folder','Select Folder', choice = grep(x=list.dirs(fpath, recursive = FALSE), pattern = "\\.\\/\\.", value = TRUE, invert = TRUE)),
+                             selectInput("scratch_annotation_samples", "Sample Annotation", choices = NULL),
+                             
+                             selectInput("scratch_organism", "Organism", choices=c("Human", "Mouse"), selected = "Human"),
+                             
+                             #selectInput("scratch_annotation_hto", "HTO Annotation", choices = NULL),
+                             
+                             selectInput("scratch_integration_method", "Integration Method", choices=c("rpca", "cca"), selected = "rpca"),
+                             numericInput("scratch_integration_features", "Number of Integration Features", 3000),
+                             
+                             
+                             numericInput("scratch_minfeatures", "nFeature_RNA min", 100, min=100),
+                             numericInput("scratch_maxfeatures", "nFeature_RNA max", 6000, min=0),
+                             numericInput("scratch_minncount", "nCount_RNA min", 500, min=0),
+                             numericInput("scratch_maxpercentmt", "PercentMT max", 7, min=0),
+                             
+                             numericInput("scratch_umap_dims", "PCs for UMAP", 7, min=2),
+                             numericInput("scratch_cluster_resolution", "Cluster Resolution", 0.5, min=0),
+
+                             actionButton("scratch_go_button", "Process!"),tags$br(),
+                             downloadButton("scratch_downloadobj", "Download Seurat Object"),
+                             
+                           ), #sidebarPanel
+                           
+                           mainPanel(tags$br(),tags$br(),
+                                     h4("Data Selection"),
+                                     plotOutput("scratch_umap", width="100%", height = "800px"),
+                                     style = "font-size:70%"
+                           ) # mainPanel
+                           
+                  ),
+                  tabPanel("Differential Gene Expression",
+                           sidebarPanel(
+                             selectInput("de_groupby", "Group-by Attribute", choices = NULL),
+                             selectInput("de_method", "DE Test Method", choices=c("t", "wilcox", "bimod", "negbinom", "poisson", "LR"), selected = "t"),
+                             actionButton("de_process", "Process!"),tags$br(),
+                             
+                             
+                           ), #sidebarPanel
+                           
+                           mainPanel(tags$br(),tags$br(),
+                                     h4("Data Selection"),
+                                     dataTableOutput("de_out"),
+                                     shinyjs::hidden(downloadButton("de_download", "Download DEG Results")),
+                                     
+                                     style = "font-size:70%"
+                           ) # mainPanel
+                           
+                  ),
+                  tabPanel("Gene Set Enrichment",
+                           sidebarPanel(
+                             selectInput('gse_folder','Select Folder', choice = grep(x=list.dirs(fpath, recursive = FALSE), pattern = "\\.\\/\\.", value = TRUE, invert = TRUE)),
+                             selectInput('gse_de_file','DE Results', choice = c("-")),
+                             checkboxInput("gse_plot_volcanos", "Add Volcano Plots", value = FALSE, width = NULL),
+                             
+                             selectInput("gse_organism", "Organism", choices=c("human", "mouse"), selected = "Human"),
+                             numericInput("gse_min_foldchange", "Min FoldChange", 0.25, min=0, max=1),
+                             
+                             actionButton("gse_process", "Process!"),tags$br(),
+                             
+                           ), #sidebarPanel
+                           
+                           mainPanel(tags$br(),tags$br(),
+                                     h4("Data Selection"),
+                                     dataTableOutput("gse_inputfile"),
+                                     style = "font-size:70%"
+                           ) # mainPanel
+                           
+                  ),
                   
                 ) # navbarPage
 ) # fluidPage

@@ -17,6 +17,7 @@ biocViews:
 Imports:
   hdf5r,
   Seurat,
+  SeuratObject,
   magrittr,
   ggplot2,
   cowplot,
@@ -25,7 +26,6 @@ Imports:
   tidyverse,
   pbapply,
   clusterProfiler,
-  enrichplot,
   data.table,
   writexl,
   EnhancedVolcano,
@@ -54,3 +54,4 @@ Imports:
 Remotes:
   AnalytixWare/ShinySky,
   daqana/dqshiny
+  YuLab-SMU/enrichplot

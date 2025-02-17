@@ -1746,6 +1746,367 @@ splitFeaturePlot = function(obj, feature, split.by, title=NULL, limits=c(-1,1), 
   return(fplot)
 }
 
+
+
+#' performEnrichtmentAnalysis - performs enrichment analysis on a set of DE results
+#'
+#' @param obj Seurat object
+#' @param deResult list of DE results (as list of data frame)
+#' @param organism organism
+#' @param result.path location to store result file
+#'
+#' @return
+#' @export
+#'
+#' @examples
+performEnrichtmentAnalysis = function(obj, deList, organism, result.path, reverseLogFC=FALSE)
+{
+  
+  if (organism == "human")
+  {
+    print("Human Org DB")
+    orgShort = "hsa"
+    library(org.Hs.eg.db)
+    
+    globOrgDB = org.Hs.eg.db
+  } else {
+    orgShort = "mmu"
+    library(org.Mm.eg.db)
+    
+    globOrgDB = org.Mm.eg.db
+  }
+  
+  print("enrichmentAnalysis.R")
+  print("Running for organism")
+  print(orgShort)
+  
+  allDEResultIDs = names(deList)
+  gseResults = list()
+  
+  universeSym = rownames(obj)
+  
+  geneNames = clusterProfiler::bitr(universeSym, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = globOrgDB)
+  universeEntrez = geneNames[universeSym %in% geneNames$SYMBOL,]$ENTREZID
+  universeEntrez = universeEntrez[!is.na(universeEntrez)]
+  
+  for (resID in allDEResultIDs)
+  {
+    print(resID)
+    
+    resDF = deList[[resID]]
+    
+    
+    #
+    #
+    #
+    #
+    
+    print("Selecting Genes")
+    
+    if ((is.null(resDF)) || (nrow(resDF) == 0))
+    {
+      print("NULL genes")
+      gseResults[[resID]] = list(valid=F, rao=NULL, rao_up=NULL, rao_down=NULL)
+      next()
+    }
+    
+    # select significantly regulated genes
+    siggenes = resDF[resDF$p_val_adj < 0.05,]
+    
+    print(head(siggenes))  
+    if (! "gene" %in% colnames(siggenes))
+    {
+      siggenes$gene = rownames(siggenes)
+    }
+    
+    # reverse avg logFC
+    if (reverseLogFC)
+    {
+      siggenes$avg_log2FC = -siggenes$avg_log2FC
+    }
+    
+    #geneRegVec = siggenes$avg_logFC
+    #names(geneRegVec) = siggenes$gene
+    
+    
+    # convert gene symbols to entrez ID for gseGO
+    bitrfunc = function() {
+      tryCatch({
+        geneNames = clusterProfiler::bitr(siggenes$gene, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = globOrgDB)
+        return(geneNames)
+      }, error=function(err){
+        print(err)
+        return(NULL)
+      })
+    }
+    
+    geneNames = bitrfunc()
+    
+    if (is.null(geneNames))
+    {
+      print("bitr fail")
+      gseResults[[resID]] = list(valid=F, rao=NULL, rao_up=NULL, rao_down=NULL)
+      next()
+    }
+    
+    print("Unresolved gene symbols")
+    print(siggenes[!(siggenes$gene %in% geneNames$SYMBOL),]$gene)
+    
+    siggenes = siggenes[siggenes$gene %in% geneNames$SYMBOL,]
+    print(head(siggenes))
+    
+    geneVector = as.vector(siggenes$avg_log2FC)
+    names(geneVector) = siggenes$gene
+    
+    geneNameMap = geneNames$ENTREZID
+    names(geneNameMap) = geneNames$SYMBOL
+    names(geneVector) = as.numeric(geneNameMap[names(geneVector)])
+    
+    # sort decreasing ...
+    # we sort by decreasing logFC: geneList = sort(geneList, decreasing = TRUE) https://github.com/YuLab-SMU/DOSE/wiki/how-to-prepare-your-own-geneList
+    geneVector = sort(geneVector, decreasing = TRUE)
+    geneNameMap = sort(geneNameMap, decreasing = TRUE)
+    
+    keepElems = !is.na(geneVector)
+    geneVector <- geneVector[keepElems]
+    geneNameMap <- geneNameMap[keepElems]
+    
+    print("Got geneRegVec")
+    print(length(geneVector))
+    
+    
+    if (length(geneVector) == 0)
+    {
+      gseResults[[resID]] = list(valid=F, rao=NULL, rao_up=NULL, rao_down=NULL)
+      next()
+    }
+    
+    allGenes = as.numeric(names(geneVector))
+    allGenesSym = names(geneNameMap)
+    
+    print(paste("Genes", length(geneVector)))
+    print(head(allGenes))
+    print(head(allGenesSym))
+    
+    
+    upGenes=as.numeric(names(geneVector[geneVector > 0]))
+    upGenesSym = names(geneNameMap[geneVector > 0])
+    print(paste("UpGenes", length(upGenes)))
+    print(head(upGenes))
+    print(head(upGenesSym))
+    
+    downGenes = as.numeric(names(geneVector[geneVector < 0]))
+    downGenesSym = names(geneNameMap[geneVector < 0])
+    print(paste("downGenes", length(downGenes)))
+    print(head(downGenes))
+    print(head(downGenesSym))
+    
+    #
+    ## REACTOME
+    #
+    print("REACTOME")
+    print(head(allGenes))
+    print(head(upGenes))
+    print(head(downGenes))
+    
+    rao = ReactomePA::enrichPathway(gene=allGenes, organism=organism, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, readable=TRUE, pAdjustMethod="BH") 
+    rao_up = ReactomePA::enrichPathway(gene=upGenes, organism=organism, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, readable=TRUE, pAdjustMethod="BH")
+    rao_down = ReactomePA::enrichPathway(gene=downGenes, organism=organism, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, readable=TRUE, pAdjustMethod="BH")
+    
+    #
+    ## KEGG
+    #
+    print("KEGG")
+    print(head(allGenes))
+    print(head(upGenes))
+    print(head(downGenes))
+    
+    keggo = clusterProfiler::enrichKEGG(gene=allGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(keggo)) keggo <- clusterProfiler::setReadable(keggo, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    keggo_up = clusterProfiler::enrichKEGG(gene=upGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(keggo_up)) keggo_up <- clusterProfiler::setReadable(keggo_up, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    keggo_down = clusterProfiler::enrichKEGG(gene=downGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(keggo_down)) keggo_down <- clusterProfiler::setReadable(keggo_down, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    #
+    ## GO
+    #
+    print("GO")
+    print(head(allGenes))
+    print(head(upGenes))
+    print(head(downGenes))
+    
+    goo = clusterProfiler::enrichGO(gene=allGenes, OrgDb=globOrgDB, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH", readable=TRUE)
+    goo_up = clusterProfiler::enrichGO(gene=upGenes, OrgDb=globOrgDB, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH", readable=TRUE)
+    goo_down = clusterProfiler::enrichGO(gene=downGenes, OrgDb=globOrgDB, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH", readable=TRUE)
+    
+    #
+    ## MKEGG
+    #
+    print("MKEGG")
+    print(head(allGenes))
+    print(head(upGenes))
+    print(head(downGenes))
+    
+    
+    mkeggo = clusterProfiler::enrichMKEGG(gene=allGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(mkeggo)) mkeggo <- clusterProfiler::setReadable(mkeggo, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    mkeggo_up = clusterProfiler::enrichMKEGG(gene=upGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(mkeggo_up)) mkeggo_up <- clusterProfiler::setReadable(mkeggo_up, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    mkeggo_down = clusterProfiler::enrichMKEGG(gene=downGenes, organism=orgShort, universe=universeEntrez, pvalueCutoff = 1, qvalueCutoff=1, pAdjustMethod="BH")
+    if (!is.null(mkeggo_down)) mkeggo_down <- clusterProfiler::setReadable(mkeggo_down, OrgDb = globOrgDB, keyType="ENTREZID")
+    
+    
+    gseRes = list(valid=TRUE,
+                  rao=rao, rao_up=rao_up, rao_down=rao_down,
+                  keggo=keggo, keggo_up=keggo_up, keggo_down=keggo_down,
+                  mkeggo=mkeggo, mkeggo_up=mkeggo_up, mkeggo_down=mkeggo_down,
+                  goo=goo, goo_up=goo_up, goo_down=goo_down,
+                  expression=list(all_genes_entrez=geneVector, up_genes_entrez=upGenes, down_genes_entrez=downGenes,
+                                  all_genes_symbol=geneNameMap, up_genes_symbol=upGenesSym, down_genes_symbol=downGenesSym)
+    )
+    
+    
+    #
+    #
+    #
+    #
+    
+    gseResults[[resID]] = gseRes
+    
+  }
+  
+  print("Done with all jobs, saving ...")
+  print(result.path)
+  
+  createDirIfNotThere(dirname(result.path))
+  
+  saveRDS(gseResults, result.path)
+  
+  return(gseResults)
+  
+}
+
+
+
+
+#' makeEnrichmentPlots
+#'
+#' @param enrichResult results object from performEnrichtmentAnalysis
+#' @param outfolder locatin where all plots should be saved
+#'
+#' @return NULL
+#' @export
+#'
+#' @examples
+makeEnrichmentPlots = function(enrichResult, outfolder)
+{
+  
+  createDirIfNotThere(paste(outfolder, "enrichment", sep="/"))
+  print(names(enrichResult))
+  
+  for (comparison in names(enrichResult))
+  {
+    print(comparison)
+    createDirIfNotThere(paste(outfolder, "enrichment", comparison, sep="/"))
+    
+    
+    all_tests = names(enrichResult[[comparison]])
+    all_tests = setdiff(all_tests, c("valid", "expression"))
+    
+    geneExpression = enrichResult[[comparison]][["expression"]]
+    
+    geneExpression_vec = geneExpression[["all_genes_entrez"]]
+    geneExpression_vec_up = geneExpression[["up_genes_entrez"]]
+    geneExpression_vec_down = geneExpression[["down_genes_entrez"]]
+    
+    
+    for (perf_test in all_tests)
+    {
+      
+      print(paste(comparison, perf_test))
+      result_orig = enrichResult[[comparison]][[perf_test]]
+      
+      if (is.null(result_orig))
+      {
+        next()
+      }
+      
+      
+      
+      result = clusterProfiler::filter(result_orig, Count > 0)
+      result = clusterProfiler::filter(result, qvalue < 0.2)
+      
+      
+      if (nrow(result) == 0)
+      {
+        next()
+      }
+      
+      createDirIfNotThere(paste(outfolder,"enrichment", comparison, perf_test, sep="/"))
+      
+      
+      write.table(result_orig@result, paste(outfolder,"enrichment", comparison, perf_test, "enrichment_result.tsv", sep="/"), sep="\t", row.names=F, quote = F)
+      writexl::write_xlsx(result_orig@result, paste(outfolder,"enrichment", comparison, perf_test, "enrichment_result.xlsx", sep="/"))
+      
+      p=enrichplot::dotplot(result, showCategory=30) + ggplot2::ggtitle(paste("dotplot for", perf_test))
+      save_plot(p, paste(outfolder,"enrichment", comparison, perf_test, "dotplot_30", sep="/"), fig.width=6, fig.height=12)
+      
+      p= dplyr::mutate(result, qscore = -log(qvalue, base=10)) %>% barplot(x="qscore", fill="qvalue", showCategory=30)
+      save_plot(p, paste(outfolder,"enrichment", comparison, perf_test, "barplot_qvalue_30", sep="/"), fig.width=6, fig.height=12)
+      
+      testExpression = NULL
+      if (endsWith(perf_test, "_up"))
+      {
+        testExpression = geneExpression_vec_up
+      } else if (endsWith(perf_test, "_down"))
+      {
+        testExpression = geneExpression_vec_down
+      } else {
+        testExpression = geneExpression_vec
+      }
+      
+      cnetResult = clusterProfiler::filter(result, Count > 1)
+      
+      if (nrow(cnetResult) > 0)
+      {
+        p <- enrichplot::cnetplot(cnetResult, color.params = list(foldChange = testExpression))
+        save_plot(p, paste(outfolder,"enrichment", comparison, perf_test, "cnetplot", sep="/"), fig.width=12, fig.height=12, save.data=FALSE)
+      }
+      
+      result2 <- enrichplot::pairwise_termsim(result)
+      
+      ncluster = min(c(5, nrow(result)))
+      
+      if (ncluster  <= 1)
+      {
+        next()
+      }
+      
+      try(
+        {
+          p <- enrichplot::treeplot(result2, cluster.params = list(n = ncluster))
+          save_plot(p, paste(outfolder,"enrichment", comparison, perf_test, "treeplot", sep="/"), fig.width=8, fig.height=12, save.data=FALSE)
+        }
+      )
+      try(
+        {
+          p <- enrichplot::emapplot(result2)
+          save_plot(p, paste(outfolder,"enrichment", comparison, perf_test, "emapplot", sep="/"), fig.width=8, fig.height=12, save.data=FALSE)
+        }
+      )
+
+    }
+  }
+  
+}
+
+
+
 #
 ##
 ###
@@ -1771,5 +2132,9 @@ make_descr_label = function(plot, descr)
   
   return(pe)
 }
+
+
+
+
 
 

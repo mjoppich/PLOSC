@@ -7,6 +7,7 @@ library(shinysky)
 library(dqshiny)
 library(dplyr)
 library(Seurat)
+library(stringr)
 
 #devtools::install_github("AnalytixWare/ShinySky")
 #remotes::install_github("daqana/dqshiny")
@@ -17,14 +18,25 @@ fpath <- '../'
 
 # remotes::install_local(".", force=TRUE, threads=4); devtools::reload(".");
 # devtools::load_all("./")
-
 # runApp("./app")
+
+
+
+
+
 
 # Define server function
 server <- function(input, output, session) {
   
   makeViolinPlot = function(input, output)
   {
+    
+    if (is.null(seuratObj()))
+    {
+      print("Seurat Object NULL")
+      return()
+    }
+    
     print(input$v_plotmode1)
     print(input$v_groupby1)
     print(input$v_splitby1)
@@ -82,6 +94,13 @@ server <- function(input, output, session) {
   
   makeEnhancedPlots = function(input, output)
   {
+    
+    if (is.null(seuratObj()))
+    {
+      print("Seurat Object NULL")
+      return()
+    }
+    
     print("makeEnhancedPlots")
     print(input$v_plotmode2)
     print(input$v_groupby2)
@@ -194,14 +213,74 @@ server <- function(input, output, session) {
     
   }
   
-  
+  makeEnhancedUMAP = function(input, output)
+  {
+    
+    if (is.null(seuratObj()))
+    {
+      print("Seurat Object NULL")
+      return()
+    }
+    
+    print("makeEnhancedUMAP")
+    print(input$du_groupby)
+    print(input$du_scalingmode)
+    print(input$du_xsplit)
+    print(input$du_ysplit)
+    
+    scalingMode = input$du_scalingmode
+    
+    groupby = input$du_groupby
+    xsplit = input$du_xsplit
+    ysplit = input$du_ysplit
+    
+    if (!(groupby %in% colnames(seuratObj()@meta.data)))
+    {
+      groupby = NULL
+    }
+    if (!(xsplit %in% colnames(seuratObj()@meta.data)))
+    {
+      xsplit = NULL
+    }
+    if (!(ysplit %in% colnames(seuratObj()@meta.data)))
+    {
+      ysplit = NULL
+    }
+    
+    print(paste(scalingMode, groupby, xsplit, ysplit))
+    obj = seuratObj()
+    
+    p=NULL
+
+    if (is.null(groupby) || is.null(xsplit) || is.null(ysplit))
+    {
+      print("Enhanced Plots, no group")
+      output$du_umap = p
+      return();
+    }
+    
+    downsample=FALSE
+    if (scalingMode == "Downsample")
+    {
+      downsample=TRUE
+    }
+    
+    p=PLOSC::makeUMAPPlot(obj, dim1 = ysplit, dim2=xsplit, group.by=groupby, downsample = downsample)
+
+    
+    output$du_umap = renderPlot({p})
+    
+  }
   
   output$fileselected<-renderText({
     paste0('You have selected: ', input$selectfile)
   })
   
+  seuratObj = reactiveVal(NULL)
+  scratchObj = reactiveVal(NULL)
   
-  seuratObj <- eventReactive(input$load_selected_file, {
+  
+  observeEvent(input$load_selected_file, {
     fullpath <- file.path(fpath,input$selectfile)
     print(fullpath)
     
@@ -213,23 +292,48 @@ server <- function(input, output, session) {
       obj = PLOSC::preprocessIntegrated(obj, useAssay = "RNA", with.hto = FALSE)
     }
     
-    return(obj)
+    seuratObj(obj)
   })
   
   observeEvent(seuratObj(), {
-    df <- seuratObj()@meta.data
+    
+    obj = seuratObj()
+    if (is.null(obj))
+    {
+      print("Seurat Object NULL")
+      return()
+    }
+    
+    df <- obj@meta.data
     vars <- colnames(df)
     features <- rownames(seuratObj())
+    
+    updateSelectInput(session, "u_groupby1", choices = c("-", vars), selected="-")
+    
+    
     # Update select input immediately after clicking on the action button.
-    updateSelectInput(session, "v_groupby1","v_groupby1", choices = c("-", vars), selected="-")
-    updateSelectInput(session, "v_splitby1","v_splitby1", choices = c("-", vars), selected="-")
+    updateSelectInput(session, "v_groupby1", choices = c("-", vars), selected="-")
+    updateSelectInput(session, "v_splitby1", choices = c("-", vars), selected="-")
     
-    updateSelectInput(session, "v_groupby2","v_groupby2", choices = c(vars), selected=vars[1])
-    updateSelectInput(session, "v_splitby2","v_splitby2", choices = c("-", vars), selected="-")
+    updateSelectInput(session, "v_groupby2", choices = c(vars), selected=vars[1])
+    updateSelectInput(session, "v_splitby2", choices = c("-", vars), selected="-")
     
-    update_autocomplete_input(session, "v_feature1", options = rownames(seuratObj()))
+    updateSelectInput(session, "du_groupby", choices = c(vars), selected="-")
+    updateSelectInput(session, "du_xsplit", choices = c(vars), selected="-")
+    updateSelectInput(session, "du_ysplit", choices = c(vars), selected="-")
+    
+    update_autocomplete_input(session, "v_feature1", options = rownames(obj))
     updateSelectizeInput(session, "v_features2", choices=features)
-  })
+    
+    
+    updateSelectInput(session, "de_groupby", choices = c(vars), selected=vars[1])
+    
+    output$ftxtout <- renderDataTable({
+      head(obj@meta.data)
+    }, options =list(pageLength = 5))
+    
+
+  }, ignoreInit = TRUE)
   
   
 
@@ -239,23 +343,27 @@ server <- function(input, output, session) {
   ### Main Page
   ##
   #
-  output$ftxtout <- renderDataTable({
-    head(seuratObj()@meta.data)
-  }, options =list(pageLength = 5))
+
   
-  output$dimplot <- renderPlot({
-    DimPlot(seuratObj())
-  }, res = 96)
   
-  output$txtout <- renderDataTable({
-    f <- seuratObj()@meta.data %>% subset(select = input$columns) 
-    f$var1 <- f[[input$v_attribute1]]
-    f$var2 <- f[[input$v_attribute2]]
-    ff <- f %>% dplyr::filter(var1 == input$v_filter1 & var2 == input$v_filter2) 
-    fff <- ff %>% subset(select=-c(var1,var2))
-    head(fff)
-  }, options =list(pageLength = 5)
-  )
+  observeEvent(input$u_groupby1, {
+    
+    if (is.null(seuratObj()))
+    {
+      print("Seurat Object NULL")
+      return()
+    }
+      
+    groupby=input$u_groupby1
+    if (!(groupby %in% colnames(seuratObj()@meta.data)))
+    {
+      groupby = NULL
+    }
+    
+    p=Seurat::DimPlot(seuratObj(), group.by=groupby)
+    output$dimplot <- renderPlot({p})
+
+  })
   
   #
   ##
@@ -311,11 +419,266 @@ server <- function(input, output, session) {
   })
   
   
+  #
+  ##
+  ### 2D UMAP
+  ##
+  #
+  observeEvent(input$du_scalingmode, {
+    makeEnhancedUMAP(input, output)
+  })
+  
+  observeEvent(input$du_xsplit, {
+    makeEnhancedUMAP(input, output)
+  })
+  
+  observeEvent(input$du_ysplit, {
+    makeEnhancedUMAP(input, output)
+  })
+  
+  observeEvent(input$du_groupby, {
+    makeEnhancedUMAP(input, output)
+  })
+
+  
+  #
+  ##
+  ### SCRATCH
+  ##
+  #
+  observeEvent(input$scratch_folder, {
+    print(input$scratch_folder)
+    tsvFiles = list.files(input$scratch_folder,pattern="*.tsv")
+    print(tsvFiles)
+    updateSelectInput(session, "scratch_annotation_samples", choices = c("-", tsvFiles), selected="-")
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      "obj.integrated.Rds"
+    },
+    content = function(file) {
+      saveRDS(scratchObj(), file)
+    }
+  )
+  
+  observeEvent(input$scratch_go_button, {
+
+    print("Here!")
+    
+    organism = input$scratch_organism
+    
+    if (organism == "Human")
+    {
+      print("Human")
+      patternList.use = PLOSC::patternList_human()
+      cc.genes.use = Seurat::cc.genes
+    } else {
+      print("Mouse")
+      patternList.use = PLOSC::patternList_mouse()
+      
+      mouse.cc.genes = list()
+      mouse.cc.genes[["s.genes"]] = PLOSC::convertMouseGeneList(Seurat::cc.genes$s.genes)
+      mouse.cc.genes[["g2m.genes"]] = PLOSC::convertMouseGeneList(Seurat::cc.genes$g2m.genes)
+      
+      cc.genes.use = mouse.cc.genes
+    }
+    
+    
+    inputFolder = input$scratch_folder
+    integrationFolder = paste(inputFolder, "integration", sep="/")
+    
+
+    # read files
+    files <- Sys.glob(paste(inputFolder, "/*.h5", sep=""))
+    
+    print(files)
+    
+    sample_element = str_count(files[1], "/")+1
+    inputMatrices = PLOSC::readH5Files(files, sample_element=sample_element, sample_processor=function(x){return(substr(x, 1, str_locate(x, "\\.")[1]-1  ))})
+    
+    # convert matrices to seurat objects
+    objlist.raw = PLOSC::toObjList(inputMatrices, patternList.use, input$scratch_integration_features)
+    
+    # filter seurat objects for basic qc
+    objlist = PLOSC::scatterAndFilter(objlist.raw,
+                                      nfeature_rna.lower= input$scratch_minfeatures,
+                                      nfeature_rna.upper=input$scratch_maxfeatures,
+                                      ncount_rna.lower=input$scratch_minncount,
+                                      percent_mt.upper=input$scratch_maxpercentmt,
+                                      plot=FALSE
+                                      )
+    
+    print("cells per experiment")
+    print(mapply(sum, lapply(objlist, function(x) {dim(x)[2]})))
+    print("total cells")
+    print(sum(mapply(sum, lapply(objlist, function(x) {dim(x)[2]}))))
+    
+    # cleanup RAM
+    objlist.raw = NULL
+    inputMatrices = NULL
+    
+    # Prepare Integration
+    print("Prepare Integration")
+    finalList = PLOSC::prepareIntegration(objlist, cc.use.genes = cc.genes.use,
+                                   nfeatures.variable = input$scratch_integration_features,
+                                   nfeatures.scale=input$scratch_integration_features,
+                                   run.parallel=FALSE)
+    
+    
+    # Perform Integration
+    print("Perform Integration")
+    integratedList_sample = PLOSC::performIntegration(finalList$data, integrationFolder,
+                                                      features.integration = finalList$features,
+                                                      gex.method.normalization="LogNormalize",
+                                                      gex.method.integration="rpca",
+                                                      add.do=FALSE, run.parallel=FALSE)
+    
+    # Preprocess Integrated
+    print("Preprocess Integrated")
+    obj.integrated = PLOSC::preprocessIntegrated(integratedList_sample$integrated, "integratedgex", integrationFolder,
+                                                 resolution=input$scratch_cluster_resolution, num.pcs=input$scratch_umap_dims,
+                                                 dim.reduction="igpca", with.hto=FALSE)
+    obj.integrated@reductions$ig.umap = NULL
+    
+    DefaultAssay(obj.integrated) = "RNA"
+    
+    dir.create(integrationFolder, showWarnings = FALSE, recursive = TRUE)
+    saveRDS(obj.integrated, file.path(integrationFolder, "obj_integrated.Rds"))
+    
+    metaPath <- file.path(inputFolder,input$scratch_annotation_samples)
+    mdf = read.csv(metaPath, header=TRUE, sep="\t")
+    print(head(mdf))
+    
+    if ("library" %in% colnames(mdf))
+    {
+      metadata = dplyr::left_join(x = obj.integrated@meta.data, y = mdf, by=dplyr::join_by(library))
+      print(head(metadata))
+      
+      obj.integrated@meta.data = metadata
+      saveRDS(obj.integrated, file.path(integrationFolder, "obj_integrated.Rds"))
+    }
+    
+    scratchObj(obj.integrated)
+    seuratObj(obj.integrated)
+  })
   
   
   
+  observeEvent(scratchObj(), {
+   
+    obj = scratchObj()
+    if (!is.null(obj) && !is.na(obj)) 
+    {
+      p = Seurat::DimPlot(obj, group.by = "idents")
+      output$scratch_umap = renderPlot({p})      
+    }
+    
+  })
   
   
+  #
+  ## DE Analysis
+  #
+  de_markers = reactiveVal(NULL)
+  
+  observeEvent(input$de_process, {
+    
+    obj = seuratObj()
+    if (!is.null(obj) && !is.na(obj)) 
+    {
+      markers = PLOSC::makeDEResults(obj, group.by=input$de_groupby, assay="RNA", test=input$de_method)
+      de_markers(markers)
+      
+      output$de_out <- renderDataTable({
+        de_markers()
+      }, options =list(pageLength = 5))
+      
+      showNotification("Differential Gene Expression analysis finished. Results available.")
+      shinyjs::show("de_download")
+      
+    }
+    
+  })
+  output$de_download <- downloadHandler(
+    filename = function() {
+      "de_markers.tsv"
+    },
+    content = function(file) {
+      write.table(x=de_markers(), file = file, sep="\t", row.names = FALSE)
+    }
+  )
+
+  #
+  ## GSE Analysis
+  #
+  
+  observeEvent(input$gse_folder, {
+    print(input$gse_folder)
+    tsvFiles = list.files(input$gse_folder,pattern="*.tsv")
+    print(tsvFiles)
+    updateSelectInput(session, "gse_de_file", choices = c("-", tsvFiles), selected="-")
+  })
+  
+  observeEvent(input$gse_de_file, {
+    
+    if (input$gse_de_file != "-")
+    {
+      gseFolder = input$gse_folder
+      defile = file.path(gseFolder, input$gse_de_file)
+      deDF = read.table(defile, sep = "\t", header = TRUE)
+      gse_de_tsv_file(deDF)
+      
+      output$gse_inputfile <- renderDataTable({
+        gse_de_tsv_file()
+      }, options =list(pageLength = 5))
+    }
+  })
+  
+  gse_markers = reactiveVal(NULL)
+  gse_de_tsv_file = reactiveVal(NULL)
+  
+
+  observeEvent(input$gse_process, {
+    
+    obj = seuratObj()
+    if (is.null(obj))
+    {
+      showNotification("Please load Seurat Object first")
+      return()
+    }
+    
+    gseFolder = input$gse_folder
+    
+    deDF = gse_de_tsv_file()
+    
+    allClusterIDs = unique(deDF$clusterID)
+    deGroups = list()
+    
+    print(colnames(deDF))
+    
+    for (cid in allClusterIDs)
+    {
+      deGroups[[cid]] = deDF[deDF$clusterID == cid,]
+    }
+    
+    if (input$gse_plot_volcanos)
+    {
+      PLOSC::makeVolcanos(deGroups, "DE Comparison", file.path(gseFolder, "volcano/volcano"), FCcutoff=input$gse_min_foldchange)  
+    }
+    
+    print("Do Enrichment Analysis")
+    gseResults = PLOSC::performEnrichtmentAnalysis(seuratObj(), deGroups, input$gse_organism, file.path(gseFolder, "enrichment/gse_results.rds"))
+    
+    print("Plot Enrichment Analysis")
+    PLOSC::makeEnrichmentPlots( gseResults, outfolder = gseFolder )
+    print("Enrichment Analysis Done")
+    
+    gse_markers(gseResults)
+    
+    showNotification("Gene Set Enrichment processing finished. Results available.")
+
+  })
   
   
 } # server
