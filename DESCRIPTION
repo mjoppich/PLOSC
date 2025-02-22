@@ -49,7 +49,6 @@ Imports:
   shinyFiles,
   shinyWidgets,
   shinythemes,
-  shinysky,
   dqshiny
 Remotes:
   AnalytixWare/ShinySky,
