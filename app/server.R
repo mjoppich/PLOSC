@@ -1,4 +1,4 @@
-
+#
 library(shiny)
 library(shinyFiles)
 library(shinyWidgets)
@@ -8,6 +8,7 @@ library(dqshiny)
 library(dplyr)
 library(Seurat)
 library(stringr)
+library(DT)
 
 #devtools::install_github("AnalytixWare/ShinySky")
 #remotes::install_github("daqana/dqshiny")
@@ -21,9 +22,35 @@ fpath <- '../'
 # runApp("./app")
 
 
+#library(executablePackeR)
+#pack(
+#  app_name = "PLOSC",
+#  electron_settings = list(
+#    c("product_name_template", "PLO(SC)2"),
+#    c("app_description_template", "PLO(SC)2"),
+#    c("author_name_template", "Markus Joppich"),
+#    c("author_email_template", "joppich@bio.ifi.lmu.de"),
+#    c("repository_url_template", "https://github.com/mjoppich/PLOSC")
+#  ),
+#  option = list(is_dev=TRUE)
+#)
 
+downloadHandler2 <- function(filename, content, contentType=NULL, outputArgs=list()) {
+  print("downloadHandler2")
+  print(content)
+  if (!is.null(content))
+  {
+    renderFunc <- function(shinysession, name, ...) {
+      shinysession$registerDownload(name, filename, contentType, content)
+    }
+    shiny::snapshotExclude(
+      shiny::markRenderFunction(downloadButton, renderFunc, outputArgs, cacheHint = FALSE)
+    )
+  }
+  
+}
 
-
+downloadablePlots = list()
 
 # Define server function
 server <- function(input, output, session) {
@@ -34,7 +61,7 @@ server <- function(input, output, session) {
     if (is.null(seuratObj()))
     {
       print("Seurat Object NULL")
-      return()
+      return(NULL)
     }
     
     print(input$v_plotmode1)
@@ -76,20 +103,19 @@ server <- function(input, output, session) {
       } else if (plotMode == "Side-by-side Violin-Boxplot")
       {
         p=PLOSC::SplitVlnBoxPlot(seuratObj(), gene = feature, group.by = groupby, split.by=splitby)
-        
-        
       }
       
       
       p = p + ggplot2::ylim(c(ymin, ymax))
+      
       output$vplot = renderPlot({
         p
       }, res = 96)
-      
-
+      return(p)
     } else {
       output$vplot = NULL
     }
+    return(NULL)
   }
   
   makeEnhancedPlots = function(input, output)
@@ -134,14 +160,14 @@ server <- function(input, output, session) {
     {
       print("Enhanced Plots, no features")
       output$enhanced_plot = p
-      return();
+      return(p);
     }
     
     if (is.null(groupby))
     {
       print("Enhanced Plots, no group")
       output$enhanced_plot = p
-      return();
+      return(p);
     }
     output$t_dotplot_warning = renderText("Warning: -")
     if (scalingMode == "GLOBAL")
@@ -152,7 +178,7 @@ server <- function(input, output, session) {
         output$t_dotplot_warning = renderText(paste("Warning! Features not available in scaled layer", paste(unavailFeatures, collapse=", ")))
       }
     }
-
+    
     if (plotMode == "Enhanced DotPlot")
     {
       
@@ -210,7 +236,7 @@ server <- function(input, output, session) {
     }
     
     output$enhanced_plot = renderPlot({p})
-    
+    return(p)
   }
   
   makeEnhancedUMAP = function(input, output)
@@ -219,7 +245,7 @@ server <- function(input, output, session) {
     if (is.null(seuratObj()))
     {
       print("Seurat Object NULL")
-      return()
+      return(NULL)
     }
     
     print("makeEnhancedUMAP")
@@ -251,12 +277,12 @@ server <- function(input, output, session) {
     obj = seuratObj()
     
     p=NULL
-
+    
     if (is.null(groupby) || is.null(xsplit) || is.null(ysplit))
     {
       print("Enhanced Plots, no group")
       output$du_umap = p
-      return();
+      return(NULL);
     }
     
     downsample=FALSE
@@ -266,9 +292,10 @@ server <- function(input, output, session) {
     }
     
     p=PLOSC::makeUMAPPlot(obj, dim1 = ysplit, dim2=xsplit, group.by=groupby, downsample = downsample)
-
     
+    downloadablePlots[["2DUMAP"]] = p
     output$du_umap = renderPlot({p})
+    return(p)
     
   }
   
@@ -294,6 +321,10 @@ server <- function(input, output, session) {
     
     seuratObj(obj)
   })
+  
+  
+  
+  
   
   observeEvent(seuratObj(), {
     
@@ -328,22 +359,26 @@ server <- function(input, output, session) {
     
     updateSelectInput(session, "de_groupby", choices = c(vars), selected=vars[1])
     
-    output$ftxtout <- renderDataTable({
-      head(obj@meta.data)
-    }, options =list(pageLength = 5))
+    output$ftxtout <- renderDT({
+      head(obj@meta.data, n=1000)
+    }, options =list(pageLength = 5,
+                     dom = 'Bfrtip',
+                     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+    )
+    )
     
-
+    
   }, ignoreInit = TRUE)
   
   
-
+  
   
   #
   ##
   ### Main Page
   ##
   #
-
+  
   
   
   observeEvent(input$u_groupby1, {
@@ -353,7 +388,7 @@ server <- function(input, output, session) {
       print("Seurat Object NULL")
       return()
     }
-      
+    
     groupby=input$u_groupby1
     if (!(groupby %in% colnames(seuratObj()@meta.data)))
     {
@@ -361,9 +396,37 @@ server <- function(input, output, session) {
     }
     
     p=Seurat::DimPlot(seuratObj(), group.by=groupby)
+    download_dimplot(p)
     output$dimplot <- renderPlot({p})
-
+    
   })
+  
+  download_dimplot = reactiveVal(NULL)
+  output$download_dimplot <- downloadHandler2(
+    filename = function() {
+      "plot.png"
+    },
+    content = function(file) {
+      
+      p=download_dimplot()
+      if (!is.null(p))
+      {
+        print("output width")
+        print(session$clientData$output_dimplot_width)
+        print("output height")
+        print(session$clientData$output_dimplot_height)
+        
+        png(file, width=session$clientData$output_dimplot_width,
+            height=session$clientData$output_dimplot_height,
+            units="px", type="cairo-png")
+        print(p)
+        dev.off()
+      } else {
+        return(NULL)
+      }
+    }
+  )
+  
   
   #
   ##
@@ -371,26 +434,58 @@ server <- function(input, output, session) {
   ##
   #
   observeEvent(input$v_splitby1, {
-    makeViolinPlot(input, output)
+    p=makeViolinPlot(input, output)
+    download_violinplot(p)
   })
   
   observeEvent(input$v_groupby1, {
-    makeViolinPlot(input, output)
+    p=makeViolinPlot(input, output)
+    download_violinplot(p) 
   })
   
   observeEvent(input$v_plotmode1, {
-    makeViolinPlot(input, output)
+    p=makeViolinPlot(input, output)
+    download_violinplot(p)
   })
   observeEvent(input$v_ymin1, {
-    makeViolinPlot(input, output)
+    p=makeViolinPlot(input, output)
+    download_violinplot(p)
   })
   observeEvent(input$v_ymax1, {
-    makeViolinPlot(input, output)
+    p=makeViolinPlot(input, output)
+    download_violinplot(p)
+  })
+  observeEvent(input$v_feature1, {
+    p=makeViolinPlot(input, output)
+    download_violinplot(p)
   })
   
-  observeEvent(input$v_feature1, {
-    makeViolinPlot(input, output)
-  })
+  
+  download_violinplot = reactiveVal(NULL)
+  output$download_vplot <- downloadHandler2(
+    filename = function() {
+      "plot.png"
+    },
+    content = function(file) {
+      
+      p=download_violinplot()
+      if (!is.null(p))
+      {
+        print("output width")
+        print(session$clientData$output_dimplot_width)
+        print("output height")
+        print(session$clientData$output_dimplot_height)
+        
+        png(file, width=session$clientData$output_dimplot_width,
+            height=session$clientData$output_dimplot_height,
+            units="px", type="cairo-png")
+        print(p)
+        dev.off()
+      } else {
+        return(NULL)
+      }
+    }
+  )
   
   #
   ##
@@ -398,48 +493,115 @@ server <- function(input, output, session) {
   ##
   #
   observeEvent(input$v_splitby2, {
-    makeEnhancedPlots(input, output)
+    p=makeEnhancedPlots(input, output)
+    download_enhancedplot(p)
   })
   
   observeEvent(input$v_groupby2, {
-    makeEnhancedPlots(input, output)
+    p=makeEnhancedPlots(input, output)
+    download_enhancedplot(p)
   })
   
   observeEvent(input$v_plotmode2, {
-
-    makeEnhancedPlots(input, output)
+    p=makeEnhancedPlots(input, output)
+    download_enhancedplot(p)
   })
   
   observeEvent(input$v_scalingmode2, {
-    makeEnhancedPlots(input, output)
+    p=makeEnhancedPlots(input, output)
+    download_enhancedplot(p)
   })
   
   observeEvent(input$v_features2, {
-    makeEnhancedPlots(input, output)
+    p=makeEnhancedPlots(input, output)
+    download_enhancedplot(p)
   })
   
-  
+  download_enhancedplot = reactiveVal(NULL)
+  output$download_enhanced_plot <- downloadHandler2(
+    filename = function() {
+      "plot.png"
+    },
+    content = function(file) {
+      
+      p=download_enhancedplot()
+      if (!is.null(p))
+      {
+        print("output width")
+        print(session$clientData$output_dimplot_width)
+        print("output height")
+        print(session$clientData$output_dimplot_height)
+        
+        png(file, width=session$clientData$output_dimplot_width,
+            height=session$clientData$output_dimplot_height,
+            units="px", type="cairo-png")
+        print(p)
+        dev.off()
+      } else {
+        return(NULL)
+      }
+    }
+  )
   #
   ##
   ### 2D UMAP
   ##
   #
   observeEvent(input$du_scalingmode, {
-    makeEnhancedUMAP(input, output)
+    p=makeEnhancedUMAP(input, output)
+    download_2dumap(p)
   })
   
   observeEvent(input$du_xsplit, {
-    makeEnhancedUMAP(input, output)
+    p=makeEnhancedUMAP(input, output)
+    download_2dumap(p)
   })
   
   observeEvent(input$du_ysplit, {
-    makeEnhancedUMAP(input, output)
+    p=makeEnhancedUMAP(input, output)
+    download_2dumap(p)
   })
   
   observeEvent(input$du_groupby, {
-    makeEnhancedUMAP(input, output)
+    p=makeEnhancedUMAP(input, output)
+    download_2dumap(p)
   })
-
+  
+  
+  download_2dumap = reactiveVal(NULL)
+  output$download_2d_umap <- downloadHandler2(
+    filename = function() {
+      "plot.png"
+    },
+    content = function(file) {
+      
+      p=download_enhancedplot()
+      if (!is.null(p))
+      {
+        print("output width")
+        print(session$clientData$output_dimplot_width)
+        print("output height")
+        print(session$clientData$output_dimplot_height)
+        
+        png(file, width=session$clientData$output_dimplot_width,
+            height=session$clientData$output_dimplot_height,
+            units="px", type="cairo-png")
+        print(p)
+        dev.off()
+      } else {
+        return(NULL)
+      }
+    }
+  )
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      "obj.integrated.Rds"
+    },
+    content = function(file) {
+      saveRDS(scratchObj(), file)
+    }
+  )
   
   #
   ##
@@ -463,7 +625,7 @@ server <- function(input, output, session) {
   )
   
   observeEvent(input$scratch_go_button, {
-
+    
     print("Here!")
     
     organism = input$scratch_organism
@@ -488,7 +650,7 @@ server <- function(input, output, session) {
     inputFolder = input$scratch_folder
     integrationFolder = paste(inputFolder, "integration", sep="/")
     
-
+    
     # read files
     files <- Sys.glob(paste(inputFolder, "/*.h5", sep=""))
     
@@ -507,7 +669,7 @@ server <- function(input, output, session) {
                                       ncount_rna.lower=input$scratch_minncount,
                                       percent_mt.upper=input$scratch_maxpercentmt,
                                       plot=FALSE
-                                      )
+    )
     
     print("cells per experiment")
     print(mapply(sum, lapply(objlist, function(x) {dim(x)[2]})))
@@ -521,9 +683,9 @@ server <- function(input, output, session) {
     # Prepare Integration
     print("Prepare Integration")
     finalList = PLOSC::prepareIntegration(objlist, cc.use.genes = cc.genes.use,
-                                   nfeatures.variable = input$scratch_integration_features,
-                                   nfeatures.scale=input$scratch_integration_features,
-                                   run.parallel=FALSE)
+                                          nfeatures.variable = input$scratch_integration_features,
+                                          nfeatures.scale=input$scratch_integration_features,
+                                          run.parallel=FALSE)
     
     
     # Perform Integration
@@ -566,7 +728,7 @@ server <- function(input, output, session) {
   
   
   observeEvent(scratchObj(), {
-   
+    
     obj = scratchObj()
     if (!is.null(obj) && !is.na(obj)) 
     {
@@ -590,9 +752,13 @@ server <- function(input, output, session) {
       markers = PLOSC::makeDEResults(obj, group.by=input$de_groupby, assay="RNA", test=input$de_method)
       de_markers(markers)
       
-      output$de_out <- renderDataTable({
+      output$de_out <- renderDT({
         de_markers()
-      }, options =list(pageLength = 5))
+      }, options =list(pageLength = 5,
+                       dom = 'Bfrtip',
+                       buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+      )
+      )
       
       showNotification("Differential Gene Expression analysis finished. Results available.")
       shinyjs::show("de_download")
@@ -608,7 +774,7 @@ server <- function(input, output, session) {
       write.table(x=de_markers(), file = file, sep="\t", row.names = FALSE)
     }
   )
-
+  
   #
   ## GSE Analysis
   #
@@ -629,16 +795,20 @@ server <- function(input, output, session) {
       deDF = read.table(defile, sep = "\t", header = TRUE)
       gse_de_tsv_file(deDF)
       
-      output$gse_inputfile <- renderDataTable({
+      output$gse_inputfile <- renderDT({
         gse_de_tsv_file()
-      }, options =list(pageLength = 5))
+      }, options =list(pageLength = 5,
+                       dom = 'Bfrtip',
+                       buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+      )
+      )
     }
   })
   
   gse_markers = reactiveVal(NULL)
   gse_de_tsv_file = reactiveVal(NULL)
   
-
+  
   observeEvent(input$gse_process, {
     
     obj = seuratObj()
@@ -677,8 +847,9 @@ server <- function(input, output, session) {
     gse_markers(gseResults)
     
     showNotification("Gene Set Enrichment processing finished. Results available.")
-
+    
   })
+  
   
   
 } # server
