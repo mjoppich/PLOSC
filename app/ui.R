@@ -36,8 +36,7 @@ fpath <- '../'
 #)
 
 downloadHandler2 <- function(filename, content, contentType=NULL, outputArgs=list()) {
-  print("downloadHandler2")
-  print(content)
+
   if (!is.null(content))
   {
     renderFunc <- function(shinysession, name, ...) {
