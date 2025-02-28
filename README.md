@@ -18,6 +18,9 @@ These, particularly, allow the user to specify how the shown values should be sc
 With the PLO(SC)² framework the data analysis of scRNA-seq experiments becomes more stream-lined.
 This way, fellow researchers can directly apply the methods on their data.
 
+![plosc_app](https://github.com/user-attachments/assets/5fb25448-b6fb-464e-9f11-02a13212d6d2)
+
+
 ## Install
 
 Before installing PLO(SC)², make sure the following Bioconductor dependencies are installed:
