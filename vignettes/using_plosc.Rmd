@@ -1,0 +1,405 @@
+---
+title: "Using PLO(SC)²"
+output: html_notebook
+---
+
+This R-Markdown will guide you through an example analysis using PLO(SC)².
+
+```{r}
+
+library("Seurat")
+library("PLOSC")
+
+```
+
+
+Reading in all files and automatically assigning sample names
+
+```{r}
+
+files <- Sys.glob("T:/scdata/covid_sc_cellranger/h5files/*.h5")
+inputMatrices = readH5Files(files, sample_element=5, sample_processor=function(x){return(substr(x, 1, 10))})
+
+```
+
+Transforms the inputMatrices into Seurat objects, and preprocesses these for 3000 highly variable genes.
+
+```{r}
+
+objlist.raw = toObjList(inputMatrices, patternList_human(), 3000)
+
+```
+
+The input matrices (in the example case these contain all cells) are filtered: 100 < nFeature_RNA < 6000, nCount_RNA > 500 and percent_mt < 7.
+
+```{r}
+
+objlist = scatterAndFilter(objlist.raw, nfeature_rna.lower=100, nfeature_rna.upper=6000, ncount_rna.lower=500, percent_mt.upper=7, plot=FALSE, plot.after=TRUE)
+
+```
+
+Number of remaining cells per experiment
+
+```{r}
+
+print("cells per experiment")
+print(mapply(sum, lapply(objlist, function(x) {dim(x)[2]})))
+print("total cells")
+print(sum(mapply(sum, lapply(objlist, function(x) {dim(x)[2]}))))
+
+```
+
+The raw input files are not needed anymore and deleted to save some RAM.
+
+```{r}
+
+objlist.raw = NULL
+inputMatrices = NULL
+
+```
+
+The different libraries are meant to be integrated/batch removed. This step is prepared here, by first estimating cell-cycle per cell, calculating 3000 highly variable features and regressing out the cell-cycle genes in 3000 scaled genes (which are also those used for the integrating the datasets.)
+
+```{r}
+
+finalList = prepareIntegration(objlist, cc.use.genes = cc.genes, nfeatures.variable = 3000, nfeatures.scale=3000, run.parallel=FALSE)
+
+```
+
+This step performs the actual integration using the features (genes) determined in the previous command, and using the rpca method. On some R installations running RunPCA in parallel stalls R, hence it can be switched off here. No further assay (e.g. CITE-seq) is to be integrated, hence add.do is set to False.
+
+```{r}
+
+integratedList_sample = performIntegration(finalList$data, "libintegration", features.integration = finalList$features, gex.method.normalization="LogNormalize", gex.method.integration="rpca", add.do=FALSE, run.parallel=TRUE)
+
+```
+
+The ElbowPlot helps us to estimate how many PCs are needed for dimensional reduction (e.g. UMAP).
+
+```{r}
+
+ElbowPlot(integratedList_sample$integrated, ndims=30, reduction = "igpca")
+
+```
+
+The preprocessIntegrated function calculates a UMAP representation of the data and clusters the cells.
+
+```{r}
+
+obj.integrated = preprocessIntegrated(integratedList_sample$integrated, "integratedgex", "libintegration",  resolution=0.5, num.pcs=10, dim.reduction="igpca", with.hto=FALSE)
+
+
+```
+
+This removes the UMAP calculated during the performIntegration-step.
+
+```{r}
+obj.integrated@reductions$ig.umap = NULL
+```
+
+Showing the calculated UMAP representation.
+
+```{r}
+DimPlot(obj.integrated, label=T)
+```
+
+```{r}
+
+df = read.table("samples2condition.tsv", header = TRUE)
+df[order(df$sampleid),]
+
+```
+
+We now add meta-data to our object for further processing.
+
+```{r}
+
+annotateList.sample_condition = list(
+  list(name="SYMPTOMATIC", selector="^20094_0001"),
+  list(name="SYMPTOMATIC", selector="^20094_0002"),
+  list(name="SYMPTOMATIC", selector="^20094_0003"),
+  list(name="ASYMPTOMATIC", selector="^20094_0004"),
+  list(name="ASYMPTOMATIC", selector="^20094_0005"),
+  list(name="ASYMPTOMATIC", selector="^20094_0006"),
+  list(name="SYMPTOMATIC", selector="^20094_0007"),
+  list(name="SYMPTOMATIC", selector="^20094_0008"),
+  list(name="SYMPTOMATIC", selector="^20094_0009"),
+  list(name="CONTROL", selector="^20094_0012")
+
+)
+
+obj.integrated = annotateByCellnamePattern( obj.integrated, "condition", annotateList.sample_condition, order=c("CONTROL", "ASYMPTOMATIC", "SYMPTOMATIC"))
+
+annotateList.sample_condition = list(
+  list(name="TP 1", selector="^20094_0001"),
+  list(name="TP 2", selector="^20094_0002"),
+  list(name="TP 3", selector="^20094_0003"),
+  list(name="TP 1", selector="^20094_0004"),
+  list(name="TP 2", selector="^20094_0005"),
+  list(name="TP 3", selector="^20094_0006"),
+  list(name="TP 1", selector="^20094_0007"),
+  list(name="TP 2", selector="^20094_0008"),
+  list(name="TP 3", selector="^20094_0009"),
+  list(name="Ctrl", selector="^20094_0012")
+)
+
+obj.integrated = annotateByCellnamePattern( obj.integrated, "tp", annotateList.sample_condition, order=c("Ctrl", "TP 1", "TP 2", "TP 3"))
+
+
+```
+
+The makeUMAPPlot functin draws a 2D UMAP array, which is a good tool to visualize a time-series experiment across several conditions.
+
+```{r, fig.width=24, fig.height=20}
+p=makeUMAPPlot(obj.integrated, dim1 = "condition", dim2="tp", group.by="idents", downsample = FALSE)
+save_plot(p, "split_dimplot_downsample_no", 24, 20)
+
+```
+
+The downsample-options reduces the number of shown cells in all plots to the same number (the minimum of all).
+
+```{r, fig.width=24, fig.height=20}
+p=makeUMAPPlot(obj.integrated, dim1 = "condition", dim2="tp", group.by="idents", downsample = TRUE)
+save_plot(p, "split_dimplot_downsample", 24, 20)
+
+
+```
+
+
+Next we perform marker-gene analysis (DE genes per cluster). The makeDEResults function calls FindAllMarkers, but enhances these results with a summary statistic per gene.
+
+```{r}
+
+dir.create("libintegration/de")
+
+exprdfTT = makeDEResults(obj.integrated, assay="RNA", test="t")
+write.table(exprdfTT, "libintegration/de/expr_test_t.tsv", sep="\t", row.names=F, quote = F)
+writexl::write_xlsx(exprdfTT, "libintegration/de/expr_test_t.xlsx")
+print(head(exprdfTT))
+
+```
+
+
+Next we calculate a module score for a set of interferon-stimulating genes, which are analysed in the following plots.
+
+```{r}
+DefaultAssay(obj.integrated)= "RNA"
+
+isgGenes = unique(c("MT2A", "ISG15", "LY6E", "IFIT1", "IFIT2", "IFIT3", "IFITM1", "IFITM3", "IFI44L", "IFI6", "MX1", "IFI27",  "IFI44L", "RSAD2", "SIGLEC1", "IFIT1"))
+
+obj.integrated = AddModuleScore(obj.integrated, features =  isgGenes, name = "isg_score_small")
+
+```
+
+Let's briefly visualize the gene signature:
+
+```{r}
+FeaturePlot(obj.integrated, "isg_score_small1")
+
+```
+
+```{r}
+obj.integrated$cond_tp = paste(obj.integrated$condition, obj.integrated$tp, sep=" ")
+```
+
+The splitFeaturePlot is a separate FeaturePlot for each panel defined by the split.by clause. All panels have the same limits and are thus easily comparable.
+
+```{r, fig.width=30, fig.height=15}
+p=splitFeaturePlot(obj.integrated, "isg_score_small1", split.by="cond_tp", title="FeaturePlot", ncol=4)
+save_plot(p, "split_featureplot_isg", 30, 15)
+
+```
+
+The comparativeVioBoxPlot combines a BoxPlot with a Violin Plot and performs statistical tests within each group (between the subsets defined by split.by).
+
+```{r fig.width=12, fig.height=8}
+
+p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE)
+save_plot(p, "comparative_violin_isg", 12, 8)
+
+```
+
+The plot is also customizable in terms of colors.
+
+```{r fig.width=12, fig.height=8}
+
+dsrCols = list("Ctrl"="steelblue4", "TP 1"="darkred", "TP 2"="chocolate2", "TP 3"="darkseagreen3")
+
+p=comparativeVioBoxPlot(obj.integrated, "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE, dsrCols = dsrCols, boxplot_grey = "ivory4")
+save_plot(p, "comparative_violin_isg_custom", 12, 8)
+
+```
+
+```{r}
+unique(obj.integrated$condition)
+```
+And also works when only one major group is available.
+
+```{r}
+
+dsrCols = list("Ctrl"="steelblue4", "TP 1"="darkred", "TP 2"="chocolate2", "TP 3"="darkseagreen3")
+
+comparativeVioBoxPlot(subset(obj.integrated, condition=="ASYMPTOMATIC"), "isg_score_small1", group.by="condition", split.by="tp", yStepIncrease = 1, verbose=FALSE, dsrCols = dsrCols, boxplot_grey = "ivory4")
+
+```
+
+```{r}
+obj.integrated = Seurat::ScaleData(obj.integrated)
+obj.integrated
+
+```
+
+```{r}
+unique(obj.integrated$idents)
+```
+Single heatmap plot of the isgGenes per cluster. Scaled globally from ScaleData.
+
+```{r}
+
+plotGOIs = list("1"=list("clusters"=c("0"), "genes"=isgGenes))
+
+p=enhancedHeatMap(obj.integrated, plotGOIs, group.by="idents", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
+save_plot(p, "heatmap_isg_genes", 12, 8, save.data = FALSE)
+```
+Single heatmap plot of the isgGenes per cluster. Scaled by all shown values in the heatmap.
+
+```{r}
+
+plotGOIs = list("1"=list("clusters"=c("0"), "genes"=isgGenes))
+
+p=enhancedHeatMap(obj.integrated, plotGOIs, group.by="idents", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="ALL")
+save_plot(p, "heatmap_isg_genes_ALL", 12, 8, save.data = FALSE)
+
+
+```
+Split heatmap plot, grouping the cells per cluster and split the results per condition. Scaled globally from ScaleData
+
+```{r fig.width=30, fig.height=10}
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GLOBAL")
+save_plot(p, "heatmap_split_isg_genes", 30, 10, save.data = FALSE)
+
+
+```
+
+Split heatmap plot, grouping the cells per cluster and split the results per condition. Scaled by all shown values (over all 3 groups).
+
+```{r fig.width=30, fig.height=10}
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="ALL")
+save_plot(p, "heatmap_split_isg_genes_ALL", 30, 10, save.data = FALSE)
+
+
+```
+
+Split heatmap plot, grouping the cells per cluster and split the results per condition. Scaled per group/heatmap.
+
+```{r fig.width=30, fig.height=10}
+
+
+p=makeComplexExprHeatmapSplit(obj.integrated, plotGOIs, group.by="idents", split.by="condition", include_all_clusters = TRUE, title="Heatmap of ISG Genes", scale.by="GROUP")
+save_plot(p, "heatmap_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
+
+
+```
+
+This prepares the layout for the enhancedDotPlot. Per panel one entry in the plot elems with selected cells and a label is required.
+
+```{r, fig.height=12, fig.width=16}
+
+cells.control = cellIDForClusters(obj.integrated, "condition", c("CONTROL"))
+cells.symptomatic = cellIDForClusters(obj.integrated, "condition", c("SYMPTOMATIC"))
+cells.asymptomatic = cellIDForClusters(obj.integrated, "condition", c("ASYMPTOMATIC"))
+
+plotElems = list()
+plotElems[["Control"]] = list(cells=intersect(cells.control, cells.control), label="Control")
+plotElems[["Symptomatic"]] = list(cells=intersect(cells.symptomatic,cells.symptomatic), label="Symptomatic")
+plotElems[["Asymptomatic"]] = list(cells=intersect(cells.asymptomatic,cells.asymptomatic), label="Asymptomatic")
+
+```
+
+
+enhancedDotPlot of isg genes, scaled per all shown values.
+
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="ALL", rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_ALL", 30, 10, save.data = FALSE)
+
+```
+
+enhancedDotPlot of isg genes, scaled globally (from ScaleData).
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="GLOBAL", rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_GLOBAL", 30, 10, save.data = FALSE)
+
+
+```
+
+enhancedDotPlot of isg genes, scaled per shown group.
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="GROUP",rotate.x = T)
+save_plot(p, "edotplot_split_isg_genes_GROUP", 30, 10, save.data = FALSE)
+
+
+```
+
+enhancedDotPlot of isg genes, scaled per feature (across all 3 shown groups).
+
+```{r, fig.height=12, fig.width=16}
+
+p=enhancedDotPlot(obj.integrated, plotElems, featureGenes = isgGenes, group.by="idents", title="DotPlot of ISG Genes", scale.by="FEATURE", rotate.x=TRUE)
+save_plot(p, "edotplot_split_isg_genes_FEATURE", 30, 10, save.data = FALSE)
+
+
+```
+
+Compare symptomatic vs asymptomatic in all clusters (at TP1).
+
+```{r}
+
+cells.tp1 = cellIDForClusters(obj.integrated, "tp", c("TP 1"))
+
+comparison.sympt_asympt = compareCellsByCluster(obj.integrated, intersect(cells.symptomatic, cells.tp1), intersect(cells.asymptomatic, cells.tp1), "symptomatic", "asymptomatic", outfolder="./de", group.by="idents", heatmap.plot=TRUE)
+
+```
+
+Visualize the above comparison using volcano plots.
+
+```{r}
+
+makeVolcanos(comparison.sympt_asympt, "Comparison Symptomatic vs. Asymptoamtic", "./de_volcanos/sympt_asympt_tp1", FCcutoff=0.25)
+
+```
+
+Perform enrichment analysis on the above DE comparison.
+
+```{r}
+
+gseResults = performEnrichtmentAnalysis(obj.integrated, comparison.sympt_asympt, "human", "./gse_results.rds")
+
+
+```
+
+Let's visualize the enrichment results using clusterProfiler.
+
+```{r}
+
+makeEnrichmentPlots( gseResults, outfolder = "enrichment_plots/" )
+
+
+```
+
+```{r}
+print(sessionInfo())
+```
+
+```{r}
+save.image("vignette_using_plosc.RData")
+```
+
