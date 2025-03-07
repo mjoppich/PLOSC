@@ -603,43 +603,64 @@ comparativeVioBoxPlot = function( obj.sc, feature, group.by,
   return(bxp)
 }
 
-
-get_average_expression = function(obj.in, assay="RNA", group.by="orig.ident", slot="data")
+get_average_expression_df = function(obj.in, features, assay="RNA", group.by="orig.ident", slot="data")
 {
   
-  avgexp = as.data.frame(Seurat::AverageExpression(obj.in, assays=c(assay), group.by=group.by, layer=slot)[[assay]])
+  avgexp = as.data.frame(Seurat::AverageExpression(obj.in, features = features, assays=c(assay), group.by=group.by, layer=slot)[[assay]])
   originalValues = unique(obj.in@meta.data[, group.by])
+  
+  wasFactor=FALSE
+  if (is.factor(originalValues))
+  {
+    wasFactor=TRUE
+    originalValues = levels(originalValues)
+  }
   
   # values with _ in name will be with - as column name ...
   allIDValues = colnames(avgexp)
   
-  newIDValues = c()
+  newIDValues = list()
+  
   for (idv in allIDValues)
   {
+    
     if (idv %in% originalValues)
     {
       newIDValues = c(newIDValues, idv)
-    } else if (grepl("-", idv))
+    } else
     {
       idvs = stringr::str_replace_all(idv, "-", "_")
       
+      idvsg = idvs
+      if (stringr::str_length(idvsg) > 1)
+      {
+        idvsg = substr(idvsg, 2, stringr::str_length(idvsg)+1)
+        
+      }
+      
       if (idvs %in% originalValues)
       {
-        newIDValues = c(newIDValues, idvs)
+        newIDValues[[idv]] = idvs
+      } else if (idvsg %in% originalValues)
+      {
+        newIDValues[[idv]] = idvsg
       } else {
-        newIDValues = c(newIDValues, idv)
+        newIDValues[[idv]] = idv
       }
-    } else {
-      newIDValues = c(newIDValues, idv)
     }
   }
   
-  colnames(avgexp) = newIDValues
+  avgExprDF = reshape2::melt(as.matrix(avgexp))
+  colnames(avgExprDF) = c("features.plot", "id", "avg.exp")
   
-  return(avgexp)
+  avgExprDF = avgExprDF[order(avgExprDF[["features.plot"]], avgExprDF[["id"]]), ]
+  avgExprDF$id = as.character(avgExprDF$id)
+  
+  avgExprDF$id = newIDValues[avgExprDF$id]
+  
+  
+  return(avgExprDF)
 }
-
-
 
 
 #' Creates an enhanced HeatMap Plot
@@ -667,30 +688,31 @@ stopifnot(is.null(scale.by) || scale.by %in% c("GLOBAL", "ALL"))
 
 if (!is.null(scale.by))
 {
-  cat("Scaling data", scale.by)
+  print(paste("Scaling data", scale.by))
 }
 
-
-if (is.null(scale.by))
+required_genes = c()
+for (gname in names(plot_gois))
 {
-    print("Fetching average expression")
-    avgexp = get_expression(obj.in, assay="RNA", group.by=group.by, slot="data")
-    
-
-} else {
-
-  if (scale.by %in% c("ALL"))
-  {
-    print("Fetching average expression")
-    #avgexp = as.matrix(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="data")$RNA)
-    avgexp = get_average_expression(obj.in, assay = "RNA", group.by=group.by, slot="data")
-  } else {
-    print("Fetching global scaled average expression")
-    #avgexp = as.matrix(Seurat::AverageExpression(obj.in, assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA)
-    avgexp = get_average_expression(obj.in, assay = "RNA", group.by=group.by, slot="scale.data")
-    
-  }
+  required_genes = c(required_genes, plot_gois[[gname]]$genes)
 }
+required_genes = unique(required_genes)
+  
+
+if (scale.by %in% c("ALL"))
+{
+  print("Fetching average expression")
+  avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="data")
+} else {
+  print("Fetching global scaled average expression")
+  avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="scale.data")
+  
+}
+
+avgexp = tidyr::spread(avgexpDF, "id", "avg.exp")
+rownames(avgexp) = avgexp$features.plot
+avgexp[,"features.plot"] = NULL
+avgexp = as.matrix(avgexp)
 
 if (combine_gois)
 {
@@ -920,7 +942,14 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
   }
 
 
-
+  
+  required_genes = c()
+  for (gname in names(plot_gois))
+  {
+    required_genes = c(required_genes, plot_gois[[gname]]$genes)
+  }
+  required_genes = unique(required_genes)
+  
 
 
 
@@ -933,18 +962,22 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     #
     ## Fetching AVG Expression per subset
     #
-    if (is.null(scale.by) || scale.by %in% c("ALL", "GROUP"))
+    if (scale.by %in% c("ALL", "GROUP"))
     {
       print("Fetching average expression")
-      #avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="data")$RNA
-      avgexp = get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="data")
-
+      avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="data")
     } else {
-
       print("Fetching global scaled average expression")
-      #avgexp = Seurat::AverageExpression(subset(obj.in, cells=cells.sel), assays=c("RNA"), group.by=group.by, slot="scale.data")$RNA
-      avgexp = get_average_expression(subset(obj.in, cells=cells.sel), assay = "RNA", group.by=group.by, slot="scale.data")
-    }  
+      avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="scale.data")
+      
+    }
+    
+    avgexp = tidyr::spread(avgexpDF, "id", "avg.exp")
+    rownames(avgexp) = avgexp$features.plot
+    avgexp[,"features.plot"] = NULL
+    avgexp = as.matrix(avgexp)
+    
+    
 
     #
     ## Checking all clusters and genes there!
@@ -1156,24 +1189,8 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     
     scobj_subset = subset(scobj, cells=plotCells)
     
-    avgexpMat = Seurat::AverageExpression(scobj_subset, features=featureGenes, group.by=group.by, assay=assay, slot=use.slot)$RNA
-    
-    if (use.slot=="data")
-    {
-      avgexpMat = log1p(avgexpMat)
-    }
-    
-    if (is.null(rownames(avgexpMat)))
-    {
-      rownames(avgexpMat) = featureGenes
-    }
-    
-    
-    avgExpr = reshape2::melt(as.matrix(avgexpMat))
-    colnames(avgExpr) = c("features.plot", "id", "avg.exp")
-    
-    avgExpr = avgExpr[order(avgExpr[["features.plot"]], avgExpr[["id"]]), ]
-    avgExpr$id = as.character(avgExpr$id)
+
+    avgExpr=get_average_expression_df(scobj, featureGenes, assay=assay, group.by = group.by, slot = use.slot)
     
     p=Seurat::DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
     

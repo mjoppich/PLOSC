@@ -21,6 +21,8 @@ fpath <- '../'
 # devtools::load_all("./")
 # runApp("./app")
 
+print("Working Directory")
+print(getwd())
 
 #library(executablePackeR)
 #pack(
@@ -36,8 +38,8 @@ fpath <- '../'
 #)
 
 downloadHandler2 <- function(filename, content, contentType=NULL, outputArgs=list()) {
-  print("downloadHandler2")
-  print(content)
+  
+  
   if (!is.null(content))
   {
     renderFunc <- function(shinysession, name, ...) {
@@ -50,7 +52,11 @@ downloadHandler2 <- function(filename, content, contentType=NULL, outputArgs=lis
   
 }
 
-downloadablePlots = list()
+
+outputtype2engine = list(
+  "png" = "cairo-png",
+  "pdf" = "pdf"
+)
 
 # Define server function
 server <- function(input, output, session) {
@@ -322,7 +328,27 @@ server <- function(input, output, session) {
     seuratObj(obj)
   })
   
+  observeEvent(input$reload_files, {
+    print("Working Directory")
+    print(getwd())
+    print(fpath)
+    print(list.files(fpath, pattern = ".Rds"))
+    
+    updateSelectInput(session, "selectfile", choices = c("-", list.files(fpath, pattern = ".Rds")), selected="-")
+    
+  })
   
+  observeEvent(input$scratch_reload_folders, {
+    print("Working Directory")
+    print(getwd())
+    print(fpath)
+    print(list.dirs(fpath, recursive = FALSE))
+    #print(grep(x=list.dirs(fpath, recursive = FALSE), pattern = "\\.\\/\\.", value = TRUE, invert = TRUE))
+    
+    updateSelectInput(session, "scratch_folder",
+                      choices = c("-", list.dirs(fpath, recursive = FALSE))
+                      , selected="-")
+  })
   
   
   
@@ -379,6 +405,7 @@ server <- function(input, output, session) {
   ##
   #
   
+  output$curpath <- renderText({paste("Current Path:", normalizePath(file.path(getwd(), fpath)))})
   
   
   observeEvent(input$u_groupby1, {
@@ -404,7 +431,7 @@ server <- function(input, output, session) {
   download_dimplot = reactiveVal(NULL)
   output$download_dimplot <- downloadHandler2(
     filename = function() {
-      "plot.png"
+      paste("plot.", input$plot_output, sep="")
     },
     content = function(file) {
       
@@ -416,11 +443,11 @@ server <- function(input, output, session) {
         print("output height")
         print(session$clientData$output_dimplot_height)
         
-        png(file, width=session$clientData$output_dimplot_width,
-            height=session$clientData$output_dimplot_height,
-            units="px", type="cairo-png")
-        print(p)
-        dev.off()
+        ggplot2::ggsave(file, width=session$clientData$output_dimplot_width/100,
+                        height=session$clientData$output_dimplot_height/100,
+                        units="in",
+                        device=input$plot_output
+        )
       } else {
         return(NULL)
       }
@@ -464,7 +491,7 @@ server <- function(input, output, session) {
   download_violinplot = reactiveVal(NULL)
   output$download_vplot <- downloadHandler2(
     filename = function() {
-      "plot.png"
+      paste("plot.", input$plot_output, sep="")
     },
     content = function(file) {
       
@@ -476,11 +503,11 @@ server <- function(input, output, session) {
         print("output height")
         print(session$clientData$output_dimplot_height)
         
-        png(file, width=session$clientData$output_dimplot_width,
-            height=session$clientData$output_dimplot_height,
-            units="px", type="cairo-png")
-        print(p)
-        dev.off()
+        ggplot2::ggsave(file, width=session$clientData$output_dimplot_width/100,
+                        height=session$clientData$output_dimplot_height/100,
+                        units="in",
+                        device=input$plot_output
+        )
       } else {
         return(NULL)
       }
@@ -520,7 +547,7 @@ server <- function(input, output, session) {
   download_enhancedplot = reactiveVal(NULL)
   output$download_enhanced_plot <- downloadHandler2(
     filename = function() {
-      "plot.png"
+      paste("plot.", input$plot_output, sep="")
     },
     content = function(file) {
       
@@ -532,11 +559,11 @@ server <- function(input, output, session) {
         print("output height")
         print(session$clientData$output_dimplot_height)
         
-        png(file, width=session$clientData$output_dimplot_width,
-            height=session$clientData$output_dimplot_height,
-            units="px", type="cairo-png")
-        print(p)
-        dev.off()
+        ggplot2::ggsave(file, width=session$clientData$output_dimplot_width/100,
+                        height=session$clientData$output_dimplot_height/100,
+                        units="in",
+                        device=input$plot_output
+        )
       } else {
         return(NULL)
       }
@@ -571,7 +598,7 @@ server <- function(input, output, session) {
   download_2dumap = reactiveVal(NULL)
   output$download_2d_umap <- downloadHandler2(
     filename = function() {
-      "plot.png"
+      paste("plot.", input$plot_output, sep="")
     },
     content = function(file) {
       
@@ -583,9 +610,11 @@ server <- function(input, output, session) {
         print("output height")
         print(session$clientData$output_dimplot_height)
         
-        png(file, width=session$clientData$output_dimplot_width,
-            height=session$clientData$output_dimplot_height,
-            units="px", type="cairo-png")
+        ggplot2::ggsave(file, width=session$clientData$output_dimplot_width/100,
+                        height=session$clientData$output_dimplot_height/100,
+                        units="in",
+                        device=input$plot_output
+        )
         print(p)
         dev.off()
       } else {
@@ -626,7 +655,13 @@ server <- function(input, output, session) {
   
   observeEvent(input$scratch_go_button, {
     
-    print("Here!")
+    inputFolder = input$scratch_folder
+    
+    if (inputFolder == "-")
+    {
+      print("No scratch folder selected")
+      return(NULL)
+    }
     
     organism = input$scratch_organism
     
@@ -647,7 +682,7 @@ server <- function(input, output, session) {
     }
     
     
-    inputFolder = input$scratch_folder
+    
     integrationFolder = paste(inputFolder, "integration", sep="/")
     
     

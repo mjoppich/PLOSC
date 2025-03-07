@@ -909,8 +909,10 @@ performIntegration = function(objlist, intname, features.integration = 3000,
   }
   print("GEX integration done")
   
-  
+  DefaultAssay(obj.list.integrated) = "RNA"
   obj.list.integrated = SeuratObject::JoinLayers(obj.list.integrated)
+  DefaultAssay(obj.list.integrated) = "integratedgex"
+  
   #
   # integrated GEX viz
   #
