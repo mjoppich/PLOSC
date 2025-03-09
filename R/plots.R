@@ -626,7 +626,7 @@ get_average_expression_df = function(obj.in, features, assay="RNA", group.by="or
     
     if (idv %in% originalValues)
     {
-      newIDValues = c(newIDValues, idv)
+      newIDValues[[idv]] = idv
     } else
     {
       idvs = stringr::str_replace_all(idv, "-", "_")
@@ -965,10 +965,10 @@ makeComplexExprHeatmapSplit = function( obj.in, plot_gois, split.by="condition",
     if (scale.by %in% c("ALL", "GROUP"))
     {
       print("Fetching average expression")
-      avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="data")
+      avgexpDF = get_average_expression_df(subset(obj.in, cells=cells.sel), required_genes, assay = "RNA", group.by=group.by, slot="data")
     } else {
       print("Fetching global scaled average expression")
-      avgexpDF = get_average_expression_df(obj.in, required_genes, assay = "RNA", group.by=group.by, slot="scale.data")
+      avgexpDF = get_average_expression_df(subset(obj.in, cells=cells.sel), required_genes, assay = "RNA", group.by=group.by, slot="scale.data")
       
     }
     
@@ -1190,7 +1190,7 @@ enhancedDotPlot = function(scobj, plotElems, featureGenes, group.by="cellnames_m
     scobj_subset = subset(scobj, cells=plotCells)
     
 
-    avgExpr=get_average_expression_df(scobj, featureGenes, assay=assay, group.by = group.by, slot = use.slot)
+    avgExpr=get_average_expression_df(scobj_subset, featureGenes, assay=assay, group.by = group.by, slot = use.slot)
     
     p=Seurat::DotPlot(scobj_subset, features=featureGenes, group.by=group.by, assay=assay)
     
