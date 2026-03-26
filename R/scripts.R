@@ -431,7 +431,7 @@ for (name in intersect(names(inputMatrices$ab), names(relevantHTOs)))
     cellsGEX = length(colnames(objlist[[name]]))
     cellsAB = length(colnames(htoMatrix))
 
-    gexnames = substring(colnames(objlist[[name]]), str_length(name)+2)
+    gexnames = substring(colnames(objlist[[name]]), stringr::str_length(name)+2)
     print(head(gexnames))
     cellsJoint = intersect(gexnames, colnames(htoMatrix))
     cellsABsub = htoMatrix[, cellsJoint]
