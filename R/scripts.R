@@ -353,40 +353,89 @@ scatterAndFilter = function(objlist,
 #' @param objlist list of Seurat objects
 #' @param HTOs hashtag oligo IDs to ignore for processing CITE
 #' @param assayName name of the newly created CITE-seq assay
+#' @param relevantCITEs per-assay list if relevant CITE features
+#' @param assayName named list to rename CITE-features
+#' @param margin how to normalize ADT assay: 1 per cell (for one feature), 2 per cell (for all features of cell). See https://github.com/satijalab/seurat/issues/3605 .
 #'
 #' @return list of Seurat objects with HTO assay
 #'
 #'
 #' @export
-processCITE = function(objlist, imats, assayName="ADT", HTOs=NULL)
+processCITE = function(objlist, imats, assayName="ADT", HTOs=NULL, run.parallel=FALSE, relevantCITEs=NULL, rownametransform=NULL, margin=2)
 {
 
     retlist = list()
     for (name in names(objlist))
     {
+      print(name)
         obj.in = objlist[[name]]
+
+        if (! (name %in% names(imats$ab)))
+        {
+          print(paste("Not processing", name))
+          retlist[[name]] = obj.in
+          next
+        }
         ab.raw = imats$ab[[name]]
 
+        #print(head(ab.raw))
         colnames(ab.raw) = paste(name, colnames(ab.raw), sep="_")
 
         #remove HTOs from ab.raw
 
         if (!is.null(HTOs))
         {
-            ab.raw = ab.raw[ ~(rownames(ab.raw) %in% HTOs), ]
+            ab.raw = ab.raw[ !(rownames(ab.raw) %in% HTOs), ]
+            print(rownames(ab.raw))
+        }
+
+        if (!is.null(relevantCITEs))
+        {
+          if (!name %in% names(relevantCITEs))
+          {
+            print(paste("Skipping", name))
+            retlist[[name]] = obj.in
+            next
+          }
+
+          ab.raw = ab.raw[relevantCITEs[[name]],]
+        }
+
+        if (!is.null(rownametransform))
+        {
+
+          commonRows = intersect( names(rownametransform), rownames(ab.raw) )
+          objRownameTransform = rownametransform[commonRows]
+
+          ab.raw = ab.raw[names(objRownameTransform), ]
+          rownames(ab.raw) = as.character(objRownameTransform)
+
+          print("RownameTransform")
+          print(rownames(ab.raw))
         }
 
         #print(head(ab.raw))
 
+        print(dim(ab.raw))
         ab.raw = ab.raw[, colnames(obj.in)]
         
         adt_assay <- Seurat::CreateAssayObject(counts = ab.raw)
         obj.in[[assayName]] = adt_assay
 
 
-        Seurat::DefaultAssay(obj.in) <- assayName
-        obj.in <- Seurat::NormalizeData(obj.in, normalization.method = "CLR", margin = 2)
+        DefaultAssay(obj.in) <- assayName
+        if (!run.parallel)
+        {
+        t = plan()
+        plan("sequential")
+        }
 
+        #see https://github.com/satijalab/seurat/issues/3605
+        obj.in <- Seurat::NormalizeData(obj.in, normalization.method = "CLR", margin = margin)
+        if (!run.parallel)
+        {
+        plan(t)
+        }
 
         Seurat::DefaultAssay(obj.in) <- "RNA"
         retlist[[name]] = obj.in
